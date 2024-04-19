@@ -2,12 +2,9 @@ blinker==1.7.0
 cachelib==0.13.0
 certifi==2024.2.2
 charset-normalizer==3.3.2
-ci-info==0.3.0
 click==8.1.7
-colorama==0.4.6
 configobj==5.0.8
 configparser==7.0.0
-et-xmlfile==1.1.0
 etelemetry==0.3.1
 filelock==3.13.4
 fitz==0.0.1.dev2
