@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>최종 분석 결과</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+            color: #333;
+        }
+        h2 {
+            color: #0056b3;
+            margin-bottom: 40px;
+        }
+        .chart-container {
+            width: 48%;
+            height: 400px;
+            float: left;
+            margin-right: 4%;
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            padding: 20px;
+        }
+        @media (max-width: 800px) {
+            .chart-container {
+                width: 100%;
+                margin: 20px 0;
+                float: none;
+            }
+        }
+        canvas {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <h2>최종 분석 결과</h2>
+    <div class="chart-container">
+        <canvas id="sumCountsByLevel"></canvas>
+    </div>
+    <div class="chart-container">
+        <canvas id="wordCountByLevel"></canvas>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const countData = {{ count_by_level | tojson | safe }};
+            const sumCountsData = {{ sum_counts_by_level | tojson | safe }};
+
+            const ctx2 = document.getElementById('sumCountsByLevel').getContext('2d');
+            const sumCountsByLevelChart = new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(sumCountsData),
+                    datasets: [{
+                        label: '수준별 단어 수',
+                        data: Object.values(sumCountsData),
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            const ctx1 = document.getElementById('wordCountByLevel').getContext('2d');
+            const wordCountByLevelChart = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(countData),
+                    datasets: [{
+                        label: '수준별 단어 총 횟수',
+                        data: Object.values(countData),
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        });
+    </script>        
+</body>
+</html>

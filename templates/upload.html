@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>파일 업로드</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+        }
+        h2 {
+            color: #343a40;
+            margin-bottom: 20px;
+        }
+        form {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            max-width: 500px;
+            margin: auto;
+            text-align: left;
+        }
+        label {
+            font-weight: bold;
+            color: #495057;
+        }
+        input[type="file"], input[type="submit"] {
+            margin-top: 5px;
+            width: 100%;
+        }
+        input[type="submit"] {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+        input[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h2>단어 목록과 전자책 업로드</h2>
+    <form action="/" method="post" enctype="multipart/form-data">
+        <label for="wordlist">단어 목록 파일 (xlsx):</label><br>
+        <input type="file" name="wordlist" id="wordlist" accept=".xlsx" required><br><br>
+        <label for="ebook">전자책 PDF 파일:</label><br>
+        <input type="file" name="ebook" id="ebook" required><br><br>
+        <input type="submit" value="분석 시작">
+    </form>
+</body>
+</html>

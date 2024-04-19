@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>분석 결과</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        h2 {
+            color: #0056b3;
+            text-align: center;
+        }
+        .level-button {
+            padding: 10px 15px;
+            margin: 5px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .level-button:hover, .level-button.active {
+            background-color: #0056b3;
+        }
+        .word-container {
+            margin-top: 20px;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .toggle {
+            font-size: 16px;
+            color: #0056b3;
+            cursor: pointer;
+            padding: 10px;
+            display: block;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 10px;
+        }
+        .toggle:hover {
+            background-color: #f9f9f9;
+        }
+        .sentence-container {
+            display: none;
+            padding-left: 20px;
+        }
+        .sentence {
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+        .delete-btn {
+            margin-left: 10px;
+            background-color: #ff4d4f;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            padding: 5px 10px;
+            font-size: 14px;
+        }
+        .delete-btn:hover {
+            background-color: #ff2a2d;
+        }
+        .finish-button {
+            background-color: #28a745;
+            color: white;
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .finish-button:hover {
+            background-color: #218838;
+        }
+        div {
+            text-align: center;
+        }
+    </style>
+    <script>
+        function showLevel(level) {
+            // Hide all word containers
+            document.querySelectorAll('.word-container').forEach(div => {
+                div.style.display = 'none';
+            });
+            // Show the selected level container
+            document.querySelector(`#level-${level}`).style.display = 'block';
+
+            // Update active button styling
+            document.querySelectorAll('.level-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            document.querySelector(`#level-${level}-button`).classList.add('active');
+        }
+
+        function toggleSentences(word) {
+            var sentenceDiv = document.getElementById("sentences-" + word);
+            sentenceDiv.style.display = sentenceDiv.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function deleteSentence(element, word) {
+    var sentenceDiv = element.parentNode;
+    var checkbox = sentenceDiv.querySelector('input[type="checkbox"]');
+    checkbox.checked = false;
+    sentenceDiv.style.display = "none";
+    
+    var countElement = document.getElementById("count-" + word);
+    var count = parseInt(countElement.innerText) - 1;
+    countElement.innerText = count.toString();
+
+    // Update the count on the server
+    fetch('/update_word_count', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({word: word, count: count, unique_id: "{{ unique_id }}"})
+    }).then(response => response.json())
+      .then(data => {
+          console.log(data);
+          if (data.status === "success") {
+              console.log("Count updated successfully");
+          } else {
+              alert("Error updating count");
+          }
+      }).catch(error => {
+          console.error('Error:', error);
+          alert("Failed to update count on server.");
+      });
+}
+
+
+        function finalizeCounts() {
+            window.location.href = '{{ url_for("final_results", unique_id=unique_id) }}';
+        }
+    </script>
+</head>
+<body>
+    <h2>분석 결과</h2>
+    <div>
+        <button id="level-1-button" class="level-button" onclick="showLevel('1')">Level 1</button>
+        <button id="level-2-button" class="level-button" onclick="showLevel('2')">Level 2</button>
+        <button id="level-3-button" class="level-button" onclick="showLevel('3')">Level 3</button>
+        <button id="level-4-button" class="level-button" onclick="showLevel('4')">Level 4</button>
+    </div>
+
+    {% for level, words in levels.items() %}
+    <div id="level-{{ level }}" class="word-container" style="display: none;">
+        {% for word in words %}
+        {% if word_sentences.get(word['word']) %}
+        <div class="toggle" onclick="toggleSentences('{{ word['word'] }}')">
+            <h3>{{ word['word'] }} ({{ word['meaning'] }}) <span id="count-{{ word['word'] }}">{{ word_sentences.get(word['word'], [])|length }}</span></h3>
+        </div>
+        <div id="sentences-{{ word['word'] }}" class="sentence-container">
+            {% for sentence in word_sentences.get(word['word'], []) %}
+            <div class="sentence">
+                <input type="checkbox" name="sentences" value="{{ sentence }}" checked>
+                {{ sentence }}
+                <button type="button" class="delete-btn" onclick="deleteSentence(this, '{{ word['word'] }}')">삭제</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% endfor %}
+
+    <div style="text-align: center; margin-top: 20px;">
+        <button type="button" onclick="finalizeCounts()" class="finish-button" style="padding: 10px 20px; font-size: 16px; border-radius: 5px; background-color: #007bff; color: white; border: none; cursor: pointer;">완료</button>
+    </div>
+</body>
+</html>

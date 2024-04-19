@@ -1,0 +1,1 @@
+('C:\\Users\\당진AI미래교육센터 4\\flask_app\\build\\script\\PYZ-00.pyz', [])
