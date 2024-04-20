@@ -31,9 +31,14 @@ def find_word_sentences(pdf_path, words):
         sentences = text.split('. ')
         for sentence in sentences:
             for word_info in words:
-                if word_info['word'].lower() in sentence.lower():
-                    word_sentences[word_info['word']].append(sentence)
+                word = word_info['word'].lower()
+                if word in sentence.lower():
+                    start_index = max(sentence.lower().find(word) - 30, 0)  # 단어 앞 30글자 시작 인덱스
+                    end_index = min(sentence.lower().find(word) + len(word) + 30, len(sentence))  # 단어 뒤 30글자 종료 인덱스
+                    snippet = sentence[start_index:end_index]  # 단어를 포함한 문장의 일부 추출
+                    word_sentences[word_info['word']].append(snippet)
     return dict(word_sentences)
+
 
 def read_excel_file(file_path):
     """Read Excel file and categorize words by levels."""
