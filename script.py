@@ -133,4 +133,8 @@ def save_word_counts():
 if __name__ == '__main__':
     if not os.path.exists(UPLOAD_FOLDER):
         os.makedirs(UPLOAD_FOLDER)
+        print("Redis Host:", os.getenv('REDIS_HOST', 'localhost'))
+        print("Redis Port:", os.getenv('REDIS_PORT', 6379))
+        print("Redis Password:", os.getenv('REDIS_PASSWORD'))
+
     app.run(debug=True)
