@@ -36,11 +36,13 @@
             border-radius: 8px;
         }
         .toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             font-size: 16px;
             color: #0056b3;
             cursor: pointer;
             padding: 10px;
-            display: block;
             border-bottom: 1px solid #eee;
             margin-bottom: 10px;
         }
@@ -84,6 +86,19 @@
         div {
             text-align: center;
         }
+        .print-button {
+            margin-left: auto;
+            background-color: #4CAF50; /* Green */
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 12px;
+        }
     </style>
     <script>
         function showLevel(level) {
@@ -107,35 +122,64 @@
         }
 
         function deleteSentence(element, word) {
-    var sentenceDiv = element.parentNode;
-    var checkbox = sentenceDiv.querySelector('input[type="checkbox"]');
-    checkbox.checked = false;
-    sentenceDiv.style.display = "none";
-    
-    var countElement = document.getElementById("count-" + word);
-    var count = parseInt(countElement.innerText) - 1;
-    countElement.innerText = count.toString();
+            var sentenceDiv = element.parentNode;
+            var checkbox = sentenceDiv.querySelector('input[type="checkbox"]');
+            checkbox.checked = false;
+            sentenceDiv.style.display = "none";
+            
+            var countElement = document.getElementById("count-" + word);
+            var count = parseInt(countElement.innerText) - 1;
+            countElement.innerText = count.toString();
 
-    // Update the count on the server
-    fetch('/update_word_count', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({word: word, count: count, unique_id: "{{ unique_id }}"})
-    }).then(response => response.json())
-      .then(data => {
-          console.log(data);
-          if (data.status === "success") {
-              console.log("Count updated successfully");
-          } else {
-              alert("Error updating count");
-          }
-      }).catch(error => {
-          console.error('Error:', error);
-          alert("Failed to update count on server.");
-      });
+            // Update the count on the server
+            fetch('/update_word_count', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({word: word, count: count, unique_id: "{{ unique_id }}"})
+            }).then(response => response.json())
+              .then(data => {
+                  console.log(data);
+                  if (data.status === "success") {
+                      console.log("Count updated successfully");
+                  } else {
+                      alert("Error updating count");
+                  }
+              }).catch(error => {
+                  console.error('Error:', error);
+                  alert("Failed to update count on server.");
+              });
+        }
+
+        function printSentences(word) {
+    // 인쇄 버튼에서 단어와 뜻을 가져옵니다.
+            var button = document.querySelector(`button[data-word='${word}']`);
+            var wordText = button.getAttribute('data-word');
+            var meaningText = button.getAttribute('data-meaning');
+
+    // 단어와 뜻을 포함하는 텍스트를 생성합니다.
+            var wordAndMeaningHtml = `<h2>${wordText} (${meaningText})</h2>`;
+
+    // 인쇄할 문장들을 가져옵니다.
+            var printContents = document.getElementById("sentences-" + word).innerHTML;
+    
+    // 인쇄할 최종 내용을 조합합니다.
+            var finalPrintContents = wordAndMeaningHtml + "<div>" + printContents + "</div>";
+
+    // 기존 페이지 내용을 보존합니다.
+            var originalContents = document.body.innerHTML;
+
+    // 인쇄할 내용으로 페이지를 변경합니다.
+            document.body.innerHTML = finalPrintContents;
+
+    // 인쇄를 실행합니다.
+            window.print();
+
+    // 기존 페이지 내용으로 복원합니다.
+            document.body.innerHTML = originalContents;
 }
+
 
 
         function finalizeCounts() {
@@ -158,6 +202,7 @@
         {% if word_sentences.get(word['word']) %}
         <div class="toggle" onclick="toggleSentences('{{ word['word'] }}')">
             <h3>{{ word['word'] }} ({{ word['meaning'] }}) <span id="count-{{ word['word'] }}">{{ word_sentences.get(word['word'], [])|length }}</span></h3>
+            <button class="print-button" onclick="printSentences('{{ word['word'] }}')" data-word="{{ word['word'] }}" data-meaning="{{ word['meaning'] }}">인쇄</button>
         </div>
         <div id="sentences-{{ word['word'] }}" class="sentence-container">
             {% for sentence in word_sentences.get(word['word'], []) %}
