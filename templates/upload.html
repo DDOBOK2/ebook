@@ -7,54 +7,126 @@
     <style>
         body {
             font-family: 'Arial', sans-serif;
-            background-color: #f8f9fa;
-            padding: 20px;
+            background-color: #f4f4f9; /* Lighter shade for a cleaner look */
+            padding: 40px; /* More padding for better spacing */
             text-align: center;
         }
-        h2 {
-            color: #343a40;
-            margin-bottom: 20px;
+        h2, h3 {
+            color: #2c3e50; /* Darker shade for better contrast */
+            margin-bottom: 30px;
         }
         form {
             background-color: #ffffff;
-            padding: 20px;
+            padding: 30px;
             border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            max-width: 500px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1); /* Updated shadow for more depth */
+            width: 80%; /* Wider form on wide screens */
+            max-width: 800px; /* Maximum width to maintain form usability */
             margin: auto;
             text-align: left;
+        }
+        .form-group {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center; /* Aligns label and input on the same line */
+            justify-content: space-between;
         }
         label {
             font-weight: bold;
             color: #495057;
+            margin-right: 10px; /* Space between label and input */
+            flex-basis: 30%; /* Gives label a consistent width */
+            text-align: right; /* Aligns text to the right */
         }
-        input[type="file"], input[type="submit"] {
-            margin-top: 5px;
-            width: 100%;
+        input[type="text"], input[type="file"] {
+            width: 70%; /* Input takes the rest of the form-group width */
+            padding: 8px; /* Uniform padding for better touch interaction */
+            font-size: 16px; /* Appropriate font size for readability */
         }
-        input[type="submit"] {
-            background-color: #007bff;
+        button[type="submit"] {
+            background-color: #007bff; /* Primary blue for button */
             color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 12px 20px;
             border-radius: 5px;
             cursor: pointer;
-            font-size: 16px;
-            margin-top: 20px;
+            font-size: 18px; /* Slightly larger font size for the button */
+            width: 50%; /* Makes the button wider */
+            margin: 20px auto; /* Center the button and provide space above and below */
+            display: block; /* Ensures the button is centered as a block */
         }
-        input[type="submit"]:hover {
-            background-color: #0056b3;
+        button[type="submit"]:hover {
+            background-color: #0056b3; /* Darker blue on hover for effect */
         }
-    </style>
+        ul.list-group {
+            text-align: left; /* Aligns text to the left in the list */
+            padding: 0;
+            width: 80%; /* Same width as the form for consistency */
+            max-width: 800px; /* Same max width as the form */
+            margin: 30px auto; /* Space above and below the list */
+        }
+        li.list-group-item {
+            background-color: #e9ecef; /* Light gray background for list items */
+            padding: 10px 20px;
+            border: 1px solid #dee2e6; /* Subtle borders for items */
+            list-style-type: none; /* Remove default list style */
+            margin-top: 5px; /* Space between items */
+            font-size: 16px; /* Increased font size for readability */
+            color: #343a40; /* Color consistency with headings */
+            display: flex;
+            justify-content: space-between; /* Spreads content across the horizontal space */
+            align-items: center; /* Aligns items vertically */
+        }
+        a.btn {
+            padding: 5px 10px;
+            border-radius: 5px;
+            text-decoration: none; /* Removes underline from links */
+            color: white; /* Ensures text is white for visibility */
+            font-size: 14px; /* Appropriate sizing for button texts */
+        }
+        a.btn-secondary { background-color: #6c757d; } /* Secondary button color */
+        a.btn-success { background-color: #28a745; } /* Success button color */
+        a.btn-info { background-color: #17a2b8; } /* Info button color */
+    </style>      
 </head>
 <body>
-    <h2>단어 목록과 전자책 업로드</h2>
-    <form action="/" method="post" enctype="multipart/form-data">
-        <label for="wordlist">단어 목록 파일 (xlsx):</label><br>
-        <input type="file" name="wordlist" id="wordlist" accept=".xlsx" required><br><br>
-        <label for="ebook">전자책 PDF 파일:</label><br>
-        <input type="file" name="ebook" id="ebook" required><br><br>
-        <input type="submit" value="분석 시작">
-    </form>
+    <div class="container">
+        <h2>단어 목록과 전자책 업로드 및 분석</h2>
+        <form action="/" method="post" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="username">사용자 이름:</label>
+                <input type="text" id="username" name="username" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label for="wordlist">단어 목록 파일 (xlsx):</label>
+                <input type="file" name="wordlist" id="wordlist" class="form-control" accept=".xlsx" required>
+            </div>
+            <div class="form-group">
+                <label for="ebook">전자책 PDF 파일:</label>
+                <input type="file" name="ebook" id="ebook" class="form-control" required>
+            </div>
+            <button type="submit" class="btn btn-primary">분석 시작</button>
+        </form>
+        
+
+        <h3>1차 검토 완료된 전자책 목록</h3>
+        <ul class="list-group">
+            {% for book in reviewed_books %}
+            <li class="list-group-item">
+                {{ book.ebook_title }}
+                {% if book.review_stage == 'first_review_complete' %}
+                    <a href="/start_second_review/{{ book.id }}" class="btn btn-sm btn-secondary">2차 검토 시작</a>
+                {% elif book.review_stage == 'second_review_started' %}
+                    <a href="/complete_second_review/{{ book.id }}" class="btn btn-sm btn-success">2차 검토 완료</a>
+                {% endif %}
+                {% if book.review_stage == 'second_review_complete' %}
+                    <a href="/compare_results/{{ book.id }}" class="btn btn-sm btn-info">결과 비교 보기</a>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
 </body>
 </html>

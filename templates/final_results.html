@@ -54,6 +54,11 @@
             const countData = {{ count_by_level | tojson | safe }};
             const sumCountsData = {{ sum_counts_by_level | tojson | safe }};
 
+            if (!countData || !sumCountsData || Object.keys(countData).length === 0 || Object.keys(sumCountsData).length === 0) {
+                alert('No data available to display charts. Please check the data and try again.');
+                return; // 데이터가 없으면 경고를 보여주고 실행을 중단
+            }
+
             const ctx2 = document.getElementById('sumCountsByLevel').getContext('2d');
             const sumCountsByLevelChart = new Chart(ctx2, {
                 type: 'bar',

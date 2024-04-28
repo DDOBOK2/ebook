@@ -102,14 +102,10 @@
     </style>
     <script>
         function showLevel(level) {
-            // Hide all word containers
             document.querySelectorAll('.word-container').forEach(div => {
                 div.style.display = 'none';
             });
-            // Show the selected level container
             document.querySelector(`#level-${level}`).style.display = 'block';
-
-            // Update active button styling
             document.querySelectorAll('.level-button').forEach(button => {
                 button.classList.remove('active');
             });
@@ -126,21 +122,15 @@
             var checkbox = sentenceDiv.querySelector('input[type="checkbox"]');
             checkbox.checked = false;
             sentenceDiv.style.display = "none";
-            
             var countElement = document.getElementById("count-" + word);
             var count = parseInt(countElement.innerText) - 1;
             countElement.innerText = count.toString();
-
-            // Update the count on the server
             fetch('/update_word_count', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({word: word, count: count, unique_id: "{{ unique_id }}"})
             }).then(response => response.json())
               .then(data => {
-                  console.log(data);
                   if (data.status === "success") {
                       console.log("Count updated successfully");
                   } else {
@@ -153,37 +143,33 @@
         }
 
         function printSentences(word) {
-    // 인쇄 버튼에서 단어와 뜻을 가져옵니다.
             var button = document.querySelector(`button[data-word='${word}']`);
             var wordText = button.getAttribute('data-word');
             var meaningText = button.getAttribute('data-meaning');
-
-    // 단어와 뜻을 포함하는 텍스트를 생성합니다.
             var wordAndMeaningHtml = `<h2>${wordText} (${meaningText})</h2>`;
-
-    // 인쇄할 문장들을 가져옵니다.
             var printContents = document.getElementById("sentences-" + word).innerHTML;
-    
-    // 인쇄할 최종 내용을 조합합니다.
             var finalPrintContents = wordAndMeaningHtml + "<div>" + printContents + "</div>";
-
-    // 기존 페이지 내용을 보존합니다.
             var originalContents = document.body.innerHTML;
-
-    // 인쇄할 내용으로 페이지를 변경합니다.
             document.body.innerHTML = finalPrintContents;
-
-    // 인쇄를 실행합니다.
             window.print();
-
-    // 기존 페이지 내용으로 복원합니다.
             document.body.innerHTML = originalContents;
-}
-
-
+        }
 
         function finalizeCounts() {
-            window.location.href = '{{ url_for("final_results", unique_id=unique_id) }}';
+            // 기존 완료 로직을 변경하여 서버로 상태 업데이트 요청
+            fetch('/complete_review/' + '{{ unique_id }}', {
+                 method: 'POST'
+            }).then(response => response.json())
+              .then(data => {
+                  if (data.status === 'success') {
+                      window.location.href = '{{ url_for("final_results", unique_id=unique_id) }}'; // 성공 시 최종 결과 페이지로 리다이렉트
+                  } else {
+                      alert('Failed to complete the review. Please try again.');
+                  }
+              }).catch(error => {
+                  console.error('Error:', error);
+                  alert('Failed to update the review status.');
+              });
         }
     </script>
 </head>
@@ -195,7 +181,6 @@
         <button id="level-3-button" class="level-button" onclick="showLevel('3')">Level 3</button>
         <button id="level-4-button" class="level-button" onclick="showLevel('4')">Level 4</button>
     </div>
-
     {% for level, words in levels.items() %}
     <div id="level-{{ level }}" class="word-container" style="display: none;">
         {% for word in words %}
@@ -217,7 +202,6 @@
         {% endfor %}
     </div>
     {% endfor %}
-
     <div style="text-align: center; margin-top: 20px;">
         <button type="button" onclick="finalizeCounts()" class="finish-button" style="padding: 10px 20px; font-size: 16px; border-radius: 5px; background-color: #007bff; color: white; border: none; cursor: pointer;">완료</button>
     </div>
