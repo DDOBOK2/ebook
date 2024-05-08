@@ -17,18 +17,58 @@
             color: #0056b3;
             margin-bottom: 40px;
         }
-        .chart-container {
-            width: 48%;
-            height: 400px;
-            float: left;
-            margin-right: 4%;
+        .content-wrapper {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between; /* Ensure space between elements and wrap in a new line when necessary */
+            align-items: stretch; /* Align items in a line at their stretch */
+        }
+        .chart-container, .table-container {
+            flex: 1;  /* Allow flexible box grow and shrink */
+            margin-right: 20px; /* Space between the charts and tables */
             background-color: #fff;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             border-radius: 8px;
             padding: 20px;
         }
+        .chart-container:last-child, .table-container:last-child {
+            margin-right: 0;  /* Remove right margin for the last child */
+        }
+        table {
+            width: 100%;  /* Full width of the container */
+            margin: 20px auto;  /* Centering the table */
+            border-collapse: collapse;  /* Ensures borders are neat */
+            background-color: #fff;  /* Adds background color */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);  /* Adds shadow for depth */
+        }
+        th, td {
+            border: 1px solid #ccc;  /* Defines border color and width */
+            padding: 10px;  /* Increases padding for better readability */
+            text-align: center;  /* Keeps text aligned */
+            background-color: #f9f9f9;  /* Light background for cells */
+            color: #333;  /* Dark text for contrast */
+        }
+        th {
+            background-color: #007bff;  /* Theme color for header */
+            color: white;  /* White text for header */
+            font-size: 1.1em;  /* Slightly larger text in headers */
+        }
+        caption {
+            margin-bottom: 10px;
+            font-size: 1.5em;  /* Larger caption for better visibility */
+            font-weight: bold;
+            color: #0056b3;  /* Theme color for captions */
+        }
+        .info-container {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
         @media (max-width: 800px) {
-            .chart-container {
+            .chart-container, .table-container {
                 width: 100%;
                 margin: 20px 0;
                 float: none;
@@ -38,56 +78,129 @@
             max-width: 100%;
             height: auto;
         }
+        /* Add styles for button container */
+.button-container {
+    text-align: center;
+    margin-top: 20px;
+}
+
+/* Style for buttons */
+.button {
+    padding: 10px 20px;
+    font-size: 16px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-right: 10px; /* Add space between buttons if there are multiple */
+}
+
+.button:last-child {
+    margin-right: 0; /* Remove margin for the last button */
+}
+
+.button:hover {
+    background-color: #0056b3; /* Darker shade on hover */
+}
+
     </style>
 </head>
 <body>
-    <h2>최종 분석 결과</h2>
-    <div class="chart-container">
-        <canvas id="sumCountsByLevel"></canvas>
+    <h2>사고도구어 수준별 분석 결과</h2>
+    <div class="info-container">
+        <h2>{{ ebook_title }}</h2>
+        <p>검토한 사람: {{ reviewer_name }}</p>
+        <p>분석 시간: {{ analysis_time.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+        <p>검토 단계: {{ review_stage }}</p>
+    </div>    
+    <div class="content-wrapper">
+        <div class="chart-container">
+            <canvas id="wordCountByLevel"></canvas>
+        </div>
+        <div class="chart-container">
+            <canvas id="sumCountsByLevel"></canvas>
+        </div>
     </div>
-    <div class="chart-container">
-        <canvas id="wordCountByLevel"></canvas>
+    <div class="content-wrapper">
+        <div class="table-container">
+            <table>
+                <caption>수준별 단어 개수</caption>
+                <thead>
+                    <tr>
+                        <th>1수준</th>
+                        <th>2수준</th>
+                        <th>3수준</th>
+                        <th>4수준</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{{ count_by_level['1'] if '1' in count_by_level else 0 }}</td>
+                        <td>{{ count_by_level['2'] if '2' in count_by_level else 0 }}</td>
+                        <td>{{ count_by_level['3'] if '3' in count_by_level else 0 }}</td>
+                        <td>{{ count_by_level['4'] if '4' in count_by_level else 0 }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="table-container">
+            <table>
+                <caption>수준별 단어 총 횟수</caption>
+                <thead>
+                    <tr>
+                        <th>1수준</th>
+                        <th>2수준</th>
+                        <th>3수준</th>
+                        <th>4수준</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{{ sum_counts_by_level['1'] if '1' in sum_counts_by_level else 0 }}</td>
+                        <td>{{ sum_counts_by_level['2'] if '2' in sum_counts_by_level else 0 }}</td>
+                        <td>{{ sum_counts_by_level['3'] if '3' in sum_counts_by_level else 0 }}</td>
+                        <td>{{ sum_counts_by_level['4'] if '4' in sum_counts_by_level else 0 }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
-
+    <div class="button-container">
+        <button onclick="window.location.href='/'" style="padding: 10px 20px; font-size: 16px; background-color: #007bff; color: white; border: none; border-radius: 8px; cursor: pointer;">처음으로</button>
+        <button type="button" class="button" onclick="submitTableData()">Download Excel</button>
+    </div>
+    <form id="excelExportForm" action="{{ url_for('download_table_excel', unique_id=unique_id) }}" method="post">
+        <input type="hidden" name="tableData" id="tableData" value=""/>
+        <input type="hidden" name="ebookTitle" id="ebookTitle" value="{{ review_stage }}_{{ ebook_title | replace('.pdf', '') }}"/>
+    </form>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const countData = {{ count_by_level | tojson | safe }};
-            const sumCountsData = {{ sum_counts_by_level | tojson | safe }};
+        window.onload = function() {
+            // Parsing data and logging it
+            const countData = JSON.parse('{{ count_by_level | tojson | safe }}');
+            const sumCountsData = JSON.parse('{{ sum_counts_by_level | tojson | safe }}');
+            console.log("Loaded countData:", countData);
+            console.log("Loaded sumCountsData:", sumCountsData);
 
+            // Check if data is available
             if (!countData || !sumCountsData || Object.keys(countData).length === 0 || Object.keys(sumCountsData).length === 0) {
                 alert('No data available to display charts. Please check the data and try again.');
-                return; // 데이터가 없으면 경고를 보여주고 실행을 중단
+                return; // Stop execution if data is missing
             }
 
-            const ctx2 = document.getElementById('sumCountsByLevel').getContext('2d');
-            const sumCountsByLevelChart = new Chart(ctx2, {
-                type: 'bar',
-                data: {
-                    labels: Object.keys(sumCountsData),
-                    datasets: [{
-                        label: '수준별 단어 수',
-                        data: Object.values(sumCountsData),
-                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        }
-                    }
-                }
-            });
+            // Render the charts
+            renderCharts(countData, sumCountsData);
+        };
 
+        function renderCharts(countData, sumCountsData) {
+            // Chart for Count of Unique Words by Level
             const ctx1 = document.getElementById('wordCountByLevel').getContext('2d');
             const wordCountByLevelChart = new Chart(ctx1, {
                 type: 'bar',
                 data: {
                     labels: Object.keys(countData),
                     datasets: [{
-                        label: '수준별 단어 총 횟수',
+                        label: '수준별 단어 수',
                         data: Object.values(countData),
                         backgroundColor: 'rgba(255, 99, 132, 0.2)',
                         borderColor: 'rgba(255, 99, 132, 1)',
@@ -102,7 +215,58 @@
                     }
                 }
             });
+
+            // Chart for Sum of Word Counts by Level
+            const ctx2 = document.getElementById('sumCountsByLevel').getContext('2d');
+            const sumCountsByLevelChart = new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(sumCountsData),
+                    datasets: [{
+                        label: '수준별 단어 총 횟수',
+                        data: Object.values(sumCountsData),
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+        function submitTableData() {
+    var countData = [];  // Array to hold data from the first table
+    var sumData = [];    // Array to hold data from the second table
+    
+    // Iterate over the first table rows and columns to collect data
+    document.querySelectorAll('.table-container:first-of-type table tbody tr').forEach(row => {
+        var rowData = [];
+        row.querySelectorAll('td').forEach(cell => {
+            rowData.push(cell.innerText);
         });
+        countData.push(rowData);
+    });
+
+    // Iterate over the second table rows and columns to collect data
+    document.querySelectorAll('.table-container:last-of-type table tbody tr').forEach(row => {
+        var rowData = [];
+        row.querySelectorAll('td').forEach(cell => {
+            rowData.push(cell.innerText);
+        });
+        sumData.push(rowData);
+    });
+
+    // Set the form data to send
+    document.getElementById('tableData').value = JSON.stringify({countData, sumData});
+    
+    // Submit the form
+    document.getElementById('excelExportForm').submit();
+}
     </script>        
 </body>
 </html>

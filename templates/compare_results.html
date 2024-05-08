@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ ebook_title }} 분석 결과</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        h2 {
+            font-size: 45px;
+            color: #0056b3;
+            text-align: center;
+        }
+        .level-button {
+            padding: 12px 20px;
+            margin: 10px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-size: 15px; /* Increase font size */
+        }
+        .level-button:hover, .level-button.active {
+            background-color: #0056b3;
+        }
+        .word-container {
+            margin-top: 20px;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .toggle {
+            display: flex;
+            flex-direction: column; /* 요소들을 세로로 나열 */
+            align-items: start;
+            justify-content: start;
+            font-size: 16px;
+            color: #0056b3;
+            cursor: pointer;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 10px;
+        }
+        .sentence-container {
+            text-align: left !important;
+            background-color: #f9f9f9;
+            display: none;
+            padding-left: 20px;
+        }
+        .sentence {
+            font-size: 20px;
+            text-align: left !important;
+            margin-bottom: 10px;
+            line-height: 1.5;
+            margin-right: 15px;
+        }
+        .delete-btn {
+            margin-left: 10px;
+            background-color: #ff4d4f;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            padding: 5px 10px;
+            font-size: 14px;
+        }
+        .box {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            border: 1px solid rgb(0, 26, 255); /* 검은색 테두리 */
+            margin-right: 10px; /* 오른쪽 여백 */
+        }
+        .word {
+            font-size: 34px; /* 단어 부분 폰트 크기만 키움 */
+            margin-right: 20px; /* 오른쪽 여백 */
+            font-weight: bold; /* Make the font bold */
+        }
+        .meaning {
+            font-size: 20px; /* 단어 부분 폰트 크기만 키움 */
+            color: black; /* 의미 부분 글자색 변경 */
+            margin-right: 10px; /* Space before the meaning */
+        }
+        .kanji {
+            font-size: 20px; /* 단어 부분 폰트 크기만 키움 */
+            color: black; /* 의미 부분 글자색 변경 */
+            margin-right: 10px; /* Space before the meaning */
+        }
+        span[id^="count-"] {
+            font-size: 20px;  /* Adjust as needed */
+            color: #e69d00;  /* Adjust color as needed */
+        }
+        .word-details {
+            display: flex;
+            align-items: center;
+            justify-content: space-between; /* content-container와 review-button-container 사이의 공간을 최대한 넓힘 */
+            width: 100%;
+        }
+
+        .content-container {
+            text-align: left; /* 콘텐츠를 왼쪽 정렬 */
+            flex-grow: 1; /* content-container가 가능한 많은 공간을 차지하도록 함 */
+        }
+
+        .review-button-container {
+            margin-left: 10px; /* 좌측의 요소와 거리 생성 */
+            padding: 5px; /* 내부 공간 추가 */
+        }
+        .delete-btn:hover {
+            background-color: #ff2a2d;
+        }
+        .word-details {
+            display: flex;
+            align-items: center; /* 가로 중심으로 요소들을 정렬 */
+            width: 100%; /* 너비를 전체로 설정 */
+        }
+
+        .review-button {
+            margin-left: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .finish-button {
+            background-color: #28a745;
+            color: white;
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .finish-button:hover {
+            background-color: #218838;
+        }
+        .completed-button {
+            background-color: #2c0011; /* Green color indicating completion */
+            color: #ffffff; /* Sets the text color to white */
+        }
+        div {
+            text-align: center;
+        }
+        .deleted {
+            color: red; /* 차이 나는 문장 색상 */
+        }
+
+    </style>
+    <script>
+        var uniqueId = "{{ unique_id }}";  // Flask 템플릿에서 unique_id 값을 JavaScript 변수로 전달
+    console.log("Activating level:", level);
+    
+    // 모든 레벨의 컨테이너를 숨깁니다.
+    var containers = document.querySelectorAll('.word-container');
+    containers.forEach(function(container) {
+        container.style.display = 'none';
+    });
+
+    // 선택된 레벨의 컨테이너만 보여줍니다.
+    var selectedContainer = document.getElementById('level-' + level);
+    if (selectedContainer) {
+        selectedContainer.style.display = 'block';
+        console.log("Displaying container for level", level);
+    } else {
+        console.log("No container found for level", level);
+    }
+
+    // 버튼의 활성화 상태 업데이트
+    var buttons = document.querySelectorAll('.level-button');
+    buttons.forEach(function(button) {
+        button.classList.remove('active');
+    });
+    var activeButton = document.getElementById('level-' + level + '-button');
+    if (activeButton) {
+        activeButton.classList.add('active');
+    }
+}
+
+
+
+
+
+        
+function toggleSentences(word) {
+    var sentenceDiv = document.getElementById("sentences-" + word);
+    if (sentenceDiv.style.display === 'none' || !sentenceDiv.style.display) {
+        sentenceDiv.style.display = 'block'; // Show the sentences
+    } else {
+        sentenceDiv.style.display = 'none'; // Hide the sentences
+    }
+}
+        
+        function deleteSentence(element, word) {
+            var sentenceDiv = element.parentNode;
+            var checkbox = sentenceDiv.querySelector('input[type="checkbox"]');
+            checkbox.checked = false;
+            sentenceDiv.style.display = "none";
+            var countElement = document.getElementById("count-" + word);
+            var count = parseInt(countElement.innerText) - 1;
+            countElement.innerText = count.toString();
+            fetch('/update_word_count', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({unique_id: "{{ unique_id }}", word: word, increment: -1}) // Send decrement instruction
+            }).then(response => response.json())
+              .then(data => {
+                  if (data.status === "success") {
+                      console.log("Count updated successfully");
+                  } else {
+                    alert("Error updating count: " + data.message);
+                  }
+              }).catch(error => {
+                  console.error('Error:', error);
+                  alert("Failed to update count on server.");
+              });
+        }
+        function calculateAndSendSums() {
+    const levels = ['1', '2', '3', '4'];  // 예시로 사용된 수준들
+    let sumCountsByLevel = {};
+
+    levels.forEach(level => {
+        let sum = 0;
+        const counters = document.querySelectorAll(`#level-${level} span[id^="count-"]`);
+        counters.forEach(counter => {
+            sum += parseInt(counter.innerText);
+        });
+        sumCountsByLevel[level] = sum;
+    });
+
+    // 결과를 서버에 전송
+    fetch('/submit_final_counts', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({unique_id: "{{ unique_id }}", sumCountsByLevel})
+    }).then(response => response.json())
+      .then(data => {
+          if (data.status === "success") {
+              // 성공 시, final_results 페이지로 리디렉션
+              finalizeCounts();
+          } else {
+              alert('Failed to submit data. Please try again.');
+          }
+      }).catch(error => {
+          console.error('Error:', error);
+          alert('Failed to connect to server.');
+      });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const sentences = document.querySelectorAll('.sentence');
+    sentences.forEach((element, index) => {
+        if (element.dataset.deleted === 'true') {
+            element.style.color = 'red';  // 삭제된 문장을 빨간색으로 표시
+        }
+    });
+
+document.getElementById('finishButton').addEventListener('click', calculateAndSendSums);
+        function finalizeCounts() {
+            fetch('/complete_review/' + uniqueId, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({})
+            }).then(response => response.json())
+              .then(data => {
+                  if (data.status === 'success') {
+                      window.location.href = '{{ url_for("final_results", unique_id=unique_id) }}';
+                  } else {
+                      alert('Failed to complete the review. Please try again.');
+                  }
+              }).catch(error => {
+                  console.error('Error:', error);
+                  alert('Failed to update the review status.');
+              });
+        }
+        </script>       
+</head>
+<body>
+    <h2>{{ ebook_title }} 분석 결과</h2> 
+    <div>
+        <button id="level-1-button" class="level-button" onclick="showLevel('1')">Level 1</button>
+        <button id="level-2-button" class="level-button" onclick="showLevel('2')">Level 2</button>
+        <button id="level-3-button" class="level-button" onclick="showLevel('3')">Level 3</button>
+        <button id="level-4-button" class="level-button" onclick="showLevel('4')">Level 4</button>
+    </div>
+    <div>
+        {% for level, words in levels.items() %}
+        <div id="level-{{ level }}" class="word-container" style="display: none;">
+            {% for word in words %}
+            <div class="toggle">
+                <div class="word-details">
+                    <div class="content-container">
+                        <span class="box"></span>
+                        <span class="word">{{ word['word'] }}</span>
+                        (<span class="kanji">{{ word['kanji'] }}</span>) - <span class="meaning">{{ word['meaning'] }}</span>
+                        <span id="count-{{ word['word'] }}">{{ word_sentences[word['word']]|length if word_sentences[word['word']] else 0 }}</span>
+                    </div>
+                    <div class="review-button-container">
+                        <button class="review-button" onclick="reviewToggle(this, '{{ word['word'] }}');">검토하기</button>
+                    </div>
+                </div>
+                    <div id="sentences-{{ word['word'] }}" class="sentence-container">
+                        {% if word_sentences[word['word']] %}
+                        {% for sentence in word_sentences[word['word']] %}
+                        <div class="sentence" data-deleted="{{ 'true' if 'deleted' in word }}">
+                            <input type="checkbox" name="sentences" value="{{ sentence }}" checked>
+                            {{ sentence }}
+                            <button type="button" class="delete-btn" onclick="deleteSentence(this, '{{ word['word'] }}')">삭제</button>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+    <div style="text-align: center; margin-top: 20px;">
+        <button type="button" onclick="calculateAndSendSums()" class="finish-button" style="padding: 10px 20px; font-size: 16px; border-radius: 5px; background-color: #007bff; color: white; border: none; cursor: pointer;">완료</button>
+    </div>
+    <script>
+    function reviewToggle(button, word) {
+        var sentenceDiv = document.getElementById("sentences-" + word);
+        if (button.innerText === '검토하기') {
+            sentenceDiv.style.display = 'block';
+            button.innerText = '완료하기';
+            button.classList.remove('completed-button'); // Remove completed state class if exists
+            button.style.backgroundColor = '#28a745'; // Green color for review in progress
+        } else if (button.innerText === '완료하기') {
+            sentenceDiv.style.display = 'none';
+            button.innerText = '검토 완료'; // Change text to 'Completed'
+            button.classList.add('completed-button'); // Add completed state class to keep it green
+            button.style.backgroundColor = ''; // Make sure to clear any inline styles
+        }
+}
+function showLevel(level) {
+    var divs = document.querySelectorAll('div[id^="level"]');
+            divs.forEach(div => div.style.display = 'none');
+            var levelDiv = document.getElementById('level-' + level);
+            levelDiv.style.display = 'block';
+        }
+
+        document.querySelectorAll('.sentence[data-deleted="true"]').forEach(sentence => {
+            sentence.style.color = 'red';
+        });
+
+        function review(word) {
+            // Logic to display sentences for the word
+            console.log("Review sentences for", word);
+        }
+    </script>
+</body>
+</html>

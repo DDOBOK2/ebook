@@ -1,5 +1,7 @@
 from flask import Flask, request, render_template, redirect, url_for, session, jsonify
 from flask_session import Session
+from dotenv import load_dotenv
+load_dotenv()
 import os
 import fitz  # PyMuPDF
 from collections import defaultdict
@@ -11,14 +13,14 @@ import requests
 from io import BytesIO
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
-from dotenv import load_dotenv
 from flask_migrate import Migrate
 from sqlalchemy.dialects.postgresql import UUID as pgUUID
 from uuid import uuid4
 from uuid import UUID
 from datetime import timedelta
 import logging
-load_dotenv()
+from sqlalchemy.exc import SQLAlchemyError
+from flask import send_file
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
@@ -29,7 +31,7 @@ app.config['SESSION_USE_SIGNER'] = True
 app.config['SESSION_COOKIE_NAME'] = 'your_session_cookie'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SECURE'] = True  # HTTPS 환경에서만 사용할 경우
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 app.config['SESSION_SQLALCHEMY'] = db  # 세션에 사용할 SQLAlchemy 인스턴스 지정
@@ -54,8 +56,10 @@ class ReviewSession(db.Model):
     review_stage = db.Column(db.String(50), nullable=False, default='not_reviewed')
     levels = db.Column(db.JSON)  # JSON 타입으로 레벨 데이터 저장
     word_sentences = db.Column(db.JSON)  # JSON 타입으로 단어 문장 데이터 저장
-    
-    
+    final_word_counts = db.Column(db.JSON)  # 최종 단어 카운트 저장
+    initial_word_counts = db.Column(db.JSON)  # 초기 단어 카운트 저장
+    deleted_sentences = db.Column(db.JSON, default=dict)
+     
 
     def __repr__(self):
         return f'<ReviewSession {self.ebook_title} - Stage: {self.review_stage}>'
@@ -73,18 +77,16 @@ def load_review_data(session_id):
         return session_data.levels, session_data.word_sentences
     else:
         return None, None
-
-
-
-
-    
+  
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def find_word_sentences(pdf_path, words):
+def find_word_sentences(pdf_path, words, session_id):
     """Find sentences containing any of the specified words in a PDF."""
     doc = fitz.open(pdf_path)  # PDF 파일 열기
     word_sentences = defaultdict(list)  # 각 단어에 대한 문장들을 저장할 딕셔너리
+    word_counts = defaultdict(int)  # 총 발생 횟수를 저장하기 위한 사전
+
     for page in doc:  # PDF 내 각 페이지에 대해 반복
         text = page.get_text("text")  # 페이지의 텍스트 추출
         sentences = text.split('. ')  # 문장 단위로 분리
@@ -94,24 +96,45 @@ def find_word_sentences(pdf_path, words):
                     start_index = max(sentence.lower().find(word) - 30, 0)  # 문장 내에서 단어 시작 위치 찾기
                     end_index = min(sentence.lower().find(word) + len(word) + 30, len(sentence))  # 단어 끝 위치 설정
                     snippet = sentence[start_index:end_index]  # 단어 주변의 텍스트 스니펫 추출
-                    word_sentences[word].append(snippet)  # 결과 딕셔너리에 추가
-    return dict(word_sentences)  # 완성된 딕셔너리 반환
+                    # word_sentences에 값을 추가하기 전에 로그로 기록
+                    if not isinstance(word_sentences[word], list):  # 여기서 데이터 타입 검사 추가
+                        logging.error(f"Attempting to store invalid data type for word '{word}': {type(word_sentences[word])}")
+                    else:
+                        word_sentences[word].append(snippet)  # 결과 딕셔너리에 추가
+                    word_counts[word] += 1  # 단어 발생 횟수 업데이트
+    word_sentences = dict(word_sentences)                  
+    print("Word Sentences:", word_sentences)
+    update_word_counts_in_db(session_id, dict(word_counts))  # Update the database with word counts
+    return word_sentences, dict(word_counts)  # 단어 문장과 발생 횟수 모두 반환
 
-
-
+def update_word_counts_in_db(session_id, word_counts):
+    session = ReviewSession.query.filter_by(id=session_id).first()
+    if session:
+        session.final_word_counts = word_counts
+        db.session.commit()
+        print(f"Updated word counts for session {session_id}: {word_counts}")  # 로그 추가
 def read_excel_file(file_path):
     """Read Excel file and categorize words by levels."""
-    df = pd.read_excel(file_path, usecols=['Word', 'Level', 'Meaning'])
+    df = pd.read_excel(file_path, usecols=['Word', 'Level', 'Meaning', 'Kanji'])
     levels = defaultdict(list)
     for _, row in df.iterrows():
-        levels[row['Level']].append({'word': row['Word'], 'meaning': row['Meaning']})
+        levels[row['Level']].append({'word': row['Word'], 'meaning': row['Meaning'], 'kanji': row['Kanji']})
     return dict(levels)
+
+def compare_deletions(details):
+    deleted_by_first = set(map(int, details.get("deleted_by_first_reviewer", [])))
+    deleted_by_second = set(map(int, details.get("deleted_by_second_reviewer", [])))
+    common_deletions = sorted(deleted_by_first.intersection(deleted_by_second))
+    differences = sorted(deleted_by_first.symmetric_difference(deleted_by_second))
+    return common_deletions, differences
+
 
 
 
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
     if request.method == 'POST':
+        # POST 요청 처리: 파일 업로드 및 사용자 정보 저장
         user_name = request.form.get('username')
         wordlist_file = request.files.get('wordlist')
         ebook_file = request.files.get('ebook')
@@ -131,30 +154,36 @@ def upload_file():
 
         levels = read_excel_file(wordlist_path)
         all_words = [word['word'] for level_words in levels.values() for word in level_words]
-        word_sentences = find_word_sentences(ebook_path, all_words)
+        word_sentences_dict, word_counts_dict = find_word_sentences(ebook_path, all_words, unique_id)
 
-        # 새로운 리뷰 세션 생성 및 저장
         new_session = ReviewSession(
             id=unique_id,
             ebook_title=ebook_file.filename,
             user_id=new_user.id,
             review_stage='not_reviewed',
-            levels=levels,  # 데이터베이스에 레벨 데이터 저장
-            word_sentences=word_sentences  # 데이터베이스에 단어 문장 데이터 저장
+            levels=levels,
+            word_sentences=word_sentences_dict,
+            final_word_counts=word_counts_dict
         )
         db.session.add(new_session)
         db.session.commit()
 
         return redirect(url_for('show_results', unique_id=unique_id))
+    
+    else:
+        # GET 요청 처리: 검색 기능 및 목록 표시
+        search_query = request.args.get('search', '')  # 검색어 쿼리
+        reviewed_books = get_reviewed_books(search_query)
+        return render_template('upload.html', reviewed_books=reviewed_books)
 
-    reviewed_books = get_reviewed_books()
-    return render_template('upload.html', reviewed_books=reviewed_books)
 
-
-def get_reviewed_books():
-    # DB에서 1차 검토 완료된 전자책 목록을 가져오는 로직
-    return ReviewSession.query.filter_by(review_stage='first_review_complete').all()
-
+def get_reviewed_books(search_query=''):
+    query = ReviewSession.query.filter(
+        ReviewSession.review_stage.in_(['first_review_complete', 'second_review_complete', 'review_complete'])
+    )
+    if search_query:
+        query = query.filter(ReviewSession.ebook_title.ilike(f'%{search_query}%'))
+    return query.order_by(ReviewSession.created_at.desc()).all()
 
 
 @app.route('/create_user', methods=['POST'])
@@ -186,40 +215,74 @@ def show_results():
         return render_template('error.html', message="Invalid UUID format."), 400
 
     # UUID 형식 변경 (필요한 경우)
-    try:
-        if len(unique_id) == 32:  # UUID가 하이픈 없이 제공될 경우
-            formatted_uuid = f"{unique_id[:8]}-{unique_id[8:12]}-{unique_id[12:16]}-{unique_id[16:20]}-{unique_id[20:]}"
-            unique_id = formatted_uuid
-        review_session = ReviewSession.query.filter_by(id=unique_id).first()
-    except ValueError:
-        return render_template('error.html', message="Error converting UUID."), 400
+    if len(unique_id) == 32:  # UUID가 하이픈 없이 제공될 경우
+        formatted_uuid = f"{unique_id[:8]}-{unique_id[8:12]}-{unique_id[12:16]}-{unique_id[16:20]}-{unique_id[20:]}"
+        unique_id = formatted_uuid
+
+    review_session = ReviewSession.query.filter_by(id=unique_id).first()
+    if review_session:
+        # JSON 필드인 'deleted_sentences'를 처리하는 로직 수정
+        if isinstance(review_session.deleted_sentences, str):
+            try:
+                deleted_sentences = json.loads(review_session.deleted_sentences)
+            except json.JSONDecodeError as e:
+                logging.error(f"JSON decoding error: {e}")
+                return render_template('error.html', message="Error decoding deleted sentences."), 400
+        elif isinstance(review_session.deleted_sentences, dict):
+            deleted_sentences = review_session.deleted_sentences
+        else:
+            deleted_sentences = {}  # 기본값 설정
+        logging.debug(f"Loaded deleted_sentences: {review_session.deleted_sentences}")
+        # 추가적으로 'levels' 필드가 필요하다면 여기서 처리
+        levels = review_session.levels if review_session.levels else {}
+        
 
     if not review_session:
+        logging.error(f"No valid session found for ID: {unique_id}")
         return render_template('error.html', message="No valid session found for the given ID."), 404
-
-    # 세션 대신 데이터베이스에서 직접 데이터 로드
+    final_word_counts = review_session.final_word_counts or {}
     levels = review_session.levels
-    word_sentences = review_session.word_sentences
-    if levels is None or word_sentences is None:
-        return render_template('error.html', message="Data not properly loaded."), 400
+    try:
+        word_sentences = review_session.word_sentences
 
-    return render_template('show_results.html', levels=levels, word_sentences=word_sentences, unique_id=unique_id)
+        # 데이터 로드 후 타입 확인 및 변환
+        if isinstance(word_sentences, list) and len(word_sentences) > 0:
+            # 리스트 형태인 경우 첫 번째 요소 사용 (이 예제에서는 첫 번째 요소가 dict라고 가정)
+            word_sentences = word_sentences[0] if isinstance(word_sentences[0], dict) else {}
+        
+        if not isinstance(word_sentences, dict):
+            raise ValueError("Word sentences data is not in the correct format.")
+
+    except ValueError as e:
+        return render_template('error.html', message=str(e)), 400
+    count_by_level = {}
+    for level, words in levels.items():
+        count = 0
+        for word_info in words:
+            word = word_info['word']
+            count += final_word_counts.get(word, 0)
+        count_by_level[level] = count
+    # 실제 사용된 단어들만 필터링
+    used_words = {word for word in word_sentences if word_sentences[word]}  # 단어 문장에 무언가 있을 때만 추가
+    filtered_levels = {level: [word for word in words if word['word'] in used_words] for level, words in levels.items()}
+
+    ebook_title = review_session.ebook_title[:-4] if review_session.ebook_title.endswith('.pdf') else review_session.ebook_title
+
+    return render_template('show_results.html', levels=filtered_levels, deleted_sentences=deleted_sentences, review_session=review_session, count_by_level=count_by_level, word_sentences=word_sentences, unique_id=unique_id, ebook_title=ebook_title)
 
 
 @app.route('/some_route')
 def some_function():
     unique_id = request.args.get('unique_id', '')
-    levels = session.get(f'levels_{unique_id}', None)
-    word_sentences = session.get(f'word_sentences_{unique_id}', None)
-    
-    logging.debug(f"Loaded levels for {unique_id}: {levels}")
-    logging.debug(f"Loaded word_sentences for {unique_id}: {word_sentences}")
+    review_session = ReviewSession.query.filter_by(id=unique_id).first()
+    if not review_session:
+        return render_template('error.html', message="Session data not loaded properly."), 400
 
-    if levels is None or word_sentences is None:
-        logging.error(f"Session data not properly loaded for unique_id {unique_id}")
-        return "Data not loaded properly", 400
-    
-    return jsonify(levels=levels, word_sentences=word_sentences)
+    # 서버에서 삭제된 문장 인덱스 목록을 불러옵니다.
+    deleted_sentences = review_session.deleted_sentences or {}
+
+    return render_template('show_results.html', review_session=review_session, deleted_sentences=deleted_sentences)
+
 
 @app.route('/test_session')
 def test_session():
@@ -241,34 +304,68 @@ def another_function():
 def update_word_count():
     data = request.get_json()
     word = data['word']
-    count = data['count']
-    unique_id = data['unique_id']  # unique_id를 요청 데이터에서 가져옵니다.
-    final_word_counts_key = f'final_word_counts_{unique_id}'  # unique_id를 포함한 세션 키
-    final_word_counts = session.get(final_word_counts_key, {})
-    final_word_counts[word] = count
-    session[final_word_counts_key] = final_word_counts
-    return jsonify({"status": "success", "word": word, "count": count})
+    unique_id = data['unique_id']
+    increment = data['increment']
+    formatted_uuid = UUID(unique_id, version=4)
+
+    # UUID 검증과 포맷
+    try:
+        formatted_uuid = UUID(unique_id, version=4)
+    except ValueError:
+        return jsonify({"status": "error", "message": "Invalid UUID format"}), 400
+    
+    # 세션 데이터를 조회
+    review_session = ReviewSession.query.filter_by(id=formatted_uuid).first()
+    if not review_session:
+        logging.error(f"Session not found for ID: {unique_id}")
+        return jsonify({"status": "error", "message": "Session not found"}), 404
+
+    # final_word_counts가 정의되지 않은 경우 초기화
+    if review_session.final_word_counts is None:
+        review_session.final_word_counts = {}
+
+    # 단어가 final_word_counts에 없으면 초기화
+    if word not in review_session.final_word_counts:
+        review_session.final_word_counts[word] = 0
+
+    # 단어의 카운트 업데이트 (0 이하로 내려가지 않도록 조치)
+    new_count = max(0, review_session.final_word_counts[word] + increment)
+    review_session.final_word_counts[word] = new_count    
+    db.session.commit()
+
+    # 업데이트된 카운트 로깅
+    logging.info(f"Word '{word}' updated to {review_session.final_word_counts[word]} in session '{unique_id}'")
+    return jsonify({'status': 'success', 'word': word, 'count': new_count})
+
+
+
 
 @app.route('/complete_review/<unique_id>', methods=['POST'])
 def complete_review(unique_id):
+    logging.debug(f"Attempting to complete review for ID: {unique_id}")  # 로그 추가
     if not is_valid_uuid(unique_id):
+        logging.error(f"Invalid UUID format: {unique_id}")  # 로그 추가
         return jsonify({'status': 'error', 'message': 'Invalid UUID format'}), 400
 
-    review_session = ReviewSession.query.filter_by(id=unique_id).first()
+    review_session = ReviewSession.query.filter_by(id=unique_id).first()    
     if not review_session:
-        logging.error(f"Review session not found for ID: {unique_id}")
+        logging.error(f"Review session not found for ID: {unique_id}")  # 로그 추가
         return jsonify({'status': 'error', 'message': 'Review session not found'}), 404
 
     next_stage = {
         'not_reviewed': 'first_review_complete',
         'first_review_complete': 'second_review_complete',
+        'second_review_started': 'second_review_complete',  # 이 부분이 빠져 있었을 수 있습니다.
         'second_review_complete': 'review_complete'
     }
+ 
     current_stage = review_session.review_stage
+    logging.debug(f"Current review stage: {current_stage}")  # 로그 추가
     review_session.review_stage = next_stage.get(current_stage, current_stage)
     db.session.commit()
     logging.info(f"Review session updated to {review_session.review_stage} for ID: {unique_id}")
     return jsonify({'status': 'success', 'message': f'Review updated to {review_session.review_stage}'})
+
 
 def reload_session_data(unique_id):
     """ 데이터베이스에서 세션 데이터를 새로 로드하고 세션에 저장합니다. """
@@ -292,37 +389,133 @@ def reload_session_data(unique_id):
 
 
 
-@app.route('/start_second_review/<unique_id>', methods=['GET'])
+@app.route('/start_second_review/<unique_id>', methods=['POST'])
 def start_second_review(unique_id):
     # UUID 검증
     if not is_valid_uuid(unique_id):
         logging.error("Invalid UUID format")
         return "Error: Invalid unique ID.", 400
 
+    reviewer_name = request.form.get('reviewer_name')
+    if not reviewer_name:
+        return render_template('error.html', message="Reviewer name is required."), 400
+
+    # 사용자 찾기 또는 새로 만들기
+    user = User.query.filter_by(name=reviewer_name).first()
+    if not user:
+        user = User(name=reviewer_name)
+        db.session.add(user)
+        db.session.commit()
+
     # 데이터베이스에서 리뷰 세션 조회
     review_session = ReviewSession.query.filter_by(id=unique_id).first()
+    if review_session:
+        app.logger.debug(f"Review session loaded: {review_session}")
+        app.logger.debug(f"Deleted sentences: {review_session.deleted_sentences}")
     if not review_session:
         logging.error("No valid session found for the given ID")
         return render_template('error.html', message="No valid session found for the given ID."), 404
+    
+        # 초기 로드 상태 로깅
+    logging.debug(f"Initial deleted_sentences loaded: {review_session.deleted_sentences}")
 
-    # 데이터베이스에서 직접 데이터 로드
-    levels = review_session.levels
-    word_sentences = review_session.word_sentences
-    if levels is None or word_sentences is None:
-        logging.error(f"Session data not properly loaded for unique_id {unique_id}")
-        return render_template('error.html', message="Session data not properly loaded. Please try again."), 400
+    # JSON 데이터 처리
+    if isinstance(review_session.word_sentences, str):
+        try:
+            word_sentences = json.loads(review_session.word_sentences)
+        except json.JSONDecodeError as e:
+            logging.error(f"JSON decoding error: {e}")
+            return render_template('error.html', message="Error decoding word sentences."), 400
+    elif isinstance(review_session.word_sentences, dict):
+        word_sentences = review_session.word_sentences
+    else:
+        logging.error("Word sentences data is not in a supported format")
+        return render_template('error.html', message="Error processing word sentences data."), 400
+    
+    if isinstance(review_session.deleted_sentences, str):
+        try:
+            deleted_sentences = json.loads(review_session.deleted_sentences)
+        except json.JSONDecodeError as e:
+            logging.error(f"JSON decoding error: {e}")
+            return render_template('error.html', message="Error decoding word sentences."), 400
+    elif isinstance(review_session.deleted_sentences, dict):
+        deleted_sentences = review_session.deleted_sentences
+    else:
+        logging.error("deleted_sentences data is not in a supported format")
+        return render_template('error.html', message="Error processing word sentences data."), 400
 
-    # 리뷰 단계 업데이트 및 데이터베이스 커밋
+    # 리뷰 단계 및 사용자 ID 업데이트
     review_session.review_stage = 'second_review_started'
+    review_session.user_id = user.id
+
+    return redirect(url_for('show_results',unique_id=unique_id))
+
+@app.route('/start_third_review/<unique_id>', methods=['POST'])
+def start_third_review(unique_id):
+    # UUID 검증
+    if not is_valid_uuid(unique_id):
+        logging.error("Invalid UUID format")
+        return "Error: Invalid unique ID.", 400
+
+    reviewer_name = request.form.get('reviewer_name')
+    if not reviewer_name:
+        return render_template('error.html', message="Reviewer name is required."), 400
+
+    # 사용자 찾기 또는 새로 만들기
+    user = User.query.filter_by(name=reviewer_name).first()
+    if not user:
+        user = User(name=reviewer_name)
+        db.session.add(user)
+        db.session.commit()
+
+    # 데이터베이스에서 리뷰 세션 조회
+    review_session = ReviewSession.query.filter_by(id=unique_id).first()
+    if review_session:
+        app.logger.debug(f"Review session loaded: {review_session}")
+        app.logger.debug(f"Deleted sentences: {review_session.deleted_sentences}")
+    if not review_session:
+        logging.error("No valid session found for the given ID")
+        return render_template('error.html', message="No valid session found for the given ID."), 404
+    
+        # 초기 로드 상태 로깅
+    logging.debug(f"Initial deleted_sentences loaded: {review_session.deleted_sentences}")
+
+    # JSON 데이터 처리
+    if isinstance(review_session.word_sentences, str):
+        try:
+            word_sentences = json.loads(review_session.word_sentences)
+        except json.JSONDecodeError as e:
+            logging.error(f"JSON decoding error: {e}")
+            return render_template('error.html', message="Error decoding word sentences."), 400
+    elif isinstance(review_session.word_sentences, dict):
+        word_sentences = review_session.word_sentences
+    else:
+        logging.error("Word sentences data is not in a supported format")
+        return render_template('error.html', message="Error processing word sentences data."), 400
+    
+    if isinstance(review_session.deleted_sentences, str):
+        try:
+            deleted_sentences = json.loads(review_session.deleted_sentences)
+        except json.JSONDecodeError as e:
+            logging.error(f"JSON decoding error: {e}")
+            return render_template('error.html', message="Error decoding word sentences."), 400
+    elif isinstance(review_session.deleted_sentences, dict):
+        deleted_sentences = review_session.deleted_sentences
+    else:
+        logging.error("deleted_sentences data is not in a supported format")
+        return render_template('error.html', message="Error processing word sentences data."), 400
+
+    # 리뷰 단계 및 사용자 ID 업데이트
+    review_session.review_stage = 'review_complete'
+    review_session.user_id = user.id
+
+
+    # 변경사항을 데이터베이스에 다시 저장
+    review_session.word_sentences = word_sentences
+    review_session.deleted_sentences = deleted_sentences
     db.session.commit()
-    logging.info(f"Review session updated to second_review_started for ID: {unique_id}")
-    return redirect(url_for('show_results', unique_id=unique_id))
 
-
-
-
-
-
+    return redirect(url_for('show_results',unique_id=unique_id))
 
 
 @app.route('/some_route')
@@ -336,57 +529,222 @@ def some_route():
 @app.route('/final_results')
 def final_results():
     unique_id = request.args.get('unique_id')
-    
-    # 데이터베이스에서 리뷰 세션을 직접 조회
     review_session = ReviewSession.query.filter_by(id=unique_id).first()
-    final_word_counts = session.get(f'final_word_counts_{unique_id}')
-    
-    # 데이터베이스 조회 결과를 검증
+    final_counts = session.get('final_counts', {})  # 세션에서 최종 계산된 데이터를 가져옵니다.
+
     if not review_session:
+        logging.error(f"No valid session found for ID: {unique_id}")
         return render_template('error.html', message="No valid session found."), 404
-    
-    # levels와 word_sentences 데이터 로드
-    levels = review_session.levels
+
+    levels = review_session.levels or {}
     word_sentences = review_session.word_sentences
-    
-    # 로드된 데이터 검증
+    final_word_counts = review_session.final_word_counts or {}
+
     if not levels or not word_sentences:
         return render_template('error.html', message="Data not loaded properly. Please try again."), 400
 
+    analysis_time = datetime.now()  # 현재 시간을 생성
+    review_stage_korean = {
+        'not_reviewed': '미검토',
+        'first_review_complete': '1차 검토',
+        'second_review_complete': '2차 검토',
+        'review_complete': '검토 완료'
+    }.get(review_session.review_stage, '미정의 단계')
 
-    # 각 레벨별 단어 개수 계산
+    user = User.query.get(review_session.user_id)
+    if not user:
+        return render_template('error.html', message="User not found."), 404
+
+    ebook_title = review_session.ebook_title[:-4] if review_session.ebook_title.endswith('.pdf') else review_session.ebook_title
+
+    # Redefine the calculations for clarity
     count_by_level = {}
-    for level, words in levels.items():
-        count_by_level[level] = sum(final_word_counts.get(word['word'], 0) for word in words)
-
     sum_counts_by_level = {}
     for level, words in levels.items():
-        sum_counts_by_level[level] = sum(1 for word in words if final_word_counts.get(word['word'], 0) > 0)
+        count = 0
+        total_occurrences = 0
+        for word_info in words:
+            word = word_info['word']
+            if word in final_word_counts:
+                count += 1  # Increment for each distinct word found
+                total_occurrences += final_word_counts.get(word, 0)  # Add the occurrences of the word
+        count_by_level[level] = count
+        sum_counts_by_level[level] = total_occurrences
 
-    return render_template('final_results.html', count_by_level=count_by_level, sum_counts_by_level=sum_counts_by_level)
+    logging.debug(f"Loaded final_word_counts: {final_word_counts}")
+    logging.debug(f"Loaded levels: {levels}")
+    logging.debug(f"Calculated count_by_level: {count_by_level}")
+    logging.debug(f"Calculated sum_counts_by_level: {sum_counts_by_level}")
+
+    return render_template('final_results.html', review_stage=review_stage_korean, ebook_title=ebook_title,
+                           reviewer_name=user.name, analysis_time=analysis_time,
+                           sum_counts_by_level=final_counts,
+                           count_by_level=count_by_level, unique_id=unique_id)
+
+@app.route('/submit_final_counts', methods=['POST'])
+def submit_final_counts():
+    data = request.get_json()
+    unique_id = data['unique_id']
+    sum_counts_by_level = data['sumCountsByLevel']
+
+    # 여기서는 예제로 데이터를 세션에 저장하겠습니다.
+    session['final_counts'] = sum_counts_by_level
+
+    return jsonify({"status": "success"})
+
+@app.route('/update_review_stage/<unique_id>', methods=['POST'])
+def update_review_stage(unique_id):
+    review_session = ReviewSession.query.filter_by(id=unique_id).first()
+    if review_session:
+        # 예를 들어, 다음 검토 단계로 업데이트
+        review_session.review_stage = 'first_review_complete'
+        db.session.commit()
+        logging.info(f"Review stage updated to {review_session.review_stage} for session {unique_id}")
+        return jsonify({'status': 'success', 'message': 'Review stage updated'})
+    return jsonify({'status': 'error', 'message': 'Review session not found'}), 404
 
 
+@app.route('/update_review', methods=['POST'])
+def update_review():
+    data = request.get_json()
+    session_id = data['unique_id']
+    word = data['word']
+    sentence_indexes = list(map(int, data['sentence_indexes']))  # 입력된 인덱스를 정수로 변환
 
-@app.route('/compare_results', methods=['GET'])
-def compare_results():
-    session_id1 = request.args.get('session_id1')
-    session_id2 = request.args.get('session_id2')
-    results1 = session.get(f'word_sentences_{session_id1}', {})
-    results2 = session.get(f'word_sentences_{session_id2}', {})
+    # 데이터베이스 세션 리프레쉬
+    db.session.commit()  # 현재까지의 변경 사항을 커밋    
+    db.session.expire_all()
+    review_session = ReviewSession.query.get(session_id)
+    if not review_session:
+        logging.error(f"Session not found for ID: {session_id}")
+        return jsonify({'error': 'Session not found'}), 404
+    
+    # 데이터 타입 확인 및 딕셔너리 변환
+    try:
+        # word_sentences가 문자열이면 JSON으로 파싱
+        if isinstance(review_session.word_sentences, str):
+            word_sentences = json.loads(review_session.word_sentences)
+        elif isinstance(review_session.word_sentences, dict):
+            word_sentences = review_session.word_sentences
+        else:
+            word_sentences = {}  # 기본값 설정
+            print("word_sentences was not a dictionary or string, initialized to empty dict.")
 
-    # 여기서 결과 비교 로직을 구현할 수 있습니다.
-    # 예를 들어, 두 결과 집합에서 단어와 문장 수를 비교하여 차이점을 도출
-    comparison_result = {}  # 결과 비교 로직 구현 필요
-    for word in set(results1.keys()).union(results2.keys()):
-        count1 = len(results1.get(word, []))
-        count2 = len(results2.get(word, []))
-        if count1 != count2:
-            comparison_result[word] = (count1, count2)
+    except json.JSONDecodeError as e:
+        print(f"JSON decoding error: {e}")  # JSON 파싱 오류 로깅
+        word_sentences = {}  # 파싱 실패 시 초기화
+    
+    if None in sentence_indexes:
+        logging.error("Invalid sentence indexes provided")
+        return jsonify({'error': 'Invalid sentence indexes provided'}), 400
 
-    return render_template('compare_results.html', comparison=comparison_result)
+    
+    # 단어 데이터 가져오기 및 초기화
+    word_data = word_sentences.get(word, {'sentences': []})
+    if isinstance(word_data, list):  # 이 경우는 구조가 잘못된 경우임
+        logging.info("Word data was a list, converting to dict with sentences")
+        word_data = {'sentences': [{'text': s, 'deleted': False} for s in word_data]}
+
+    # 기존 데이터 확인
+    if isinstance(review_session.deleted_sentences, str):
+        deleted_sentences = json.loads(review_session.deleted_sentences)
+    else:
+        deleted_sentences = review_session.deleted_sentences or {}
+  
+    # 문장 삭제 정보 업데이트
+    for index in sentence_indexes:
+        if word not in deleted_sentences:
+            deleted_sentences[word] = []
+        if index not in deleted_sentences[word]:
+            deleted_sentences[word].append(index)
+            logging.debug(f"Adding index {index} to deleted_sentences for word '{word}'")
+
+    word_sentences[word] = word_data
+    review_session.word_sentences = word_sentences  
+    review_session.deleted_sentences = json.dumps(deleted_sentences)
+    db.session.commit()
+    logging.debug(f"Updated deleted_sentences: {review_session.deleted_sentences}")    
+
+    # 응답 반환
+    return jsonify({'success': 'Data updated'}), 200
 
 
+@app.route('/download_table_excel/<unique_id>', methods=['POST'])
+def download_table_excel(unique_id):
+    # Extract and parse the table data from the form
+    table_data = request.form.get('tableData')
+    ebook_title = request.form.get('ebookTitle')  # Get the ebook title
 
+    if table_data:
+        data = json.loads(table_data)
+        count_data = data.get('countData')
+        sum_data = data.get('sumData')
+
+        # Create DataFrames from the data
+        df_counts = pd.DataFrame(count_data, columns=['Level 1', 'Level 2', 'Level 3', 'Level 4'])
+        df_sums = pd.DataFrame(sum_data, columns=['Level 1', 'Level 2', 'Level 3', 'Level 4'])
+
+        # Save to Excel
+        filename = f"{ebook_title}.xlsx"  # Use the ebook title for the filename
+        excel_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
+            df_counts.to_excel(writer, sheet_name='Counts by Level', index=False)
+            df_sums.to_excel(writer, sheet_name='Sum Counts by Level', index=False)
+
+        return send_file(excel_path, as_attachment=True, download_name=filename)
+
+    return "No data provided", 400
+
+
+@app.route('/compare_results/<unique_id>', methods=['POST'])
+def compare_results(unique_id):
+    reviewer_name = request.form.get('reviewer_name')
+    if not reviewer_name:
+        return render_template('error.html', message="Reviewer name is required."), 400
+
+    # 사용자 찾기 또는 생성
+    user = User.query.filter_by(name=reviewer_name).first()
+    if not user:
+        user = User(name=reviewer_name)
+        db.session.add(user)
+        db.session.commit()
+
+    # 세션 데이터 조회
+    review_session = ReviewSession.query.filter_by(id=unique_id).first()
+    if not review_session:
+        print("No valid session found for ID:", unique_id)
+        return render_template('error.html', message="No valid session found."), 404
+        
+    deleted_sentences = {}  # 모든 상황에서 사용될 수 있도록 초기화
+    logging.basicConfig(level=logging.DEBUG)
+
+    # 데이터 형식 보장
+    try:
+        word_sentences = json.loads(review_session.word_sentences) if isinstance(review_session.word_sentences, str) else review_session.word_sentences
+    except json.JSONDecodeError:
+        return render_template('error.html', message="JSON decoding error.")
+    except ValueError as e:
+        return render_template('error.html', message=str(e))
+    
+    levels = review_session.levels
+    deleted_sentences = {}
+    for word, sentences in word_sentences.items():
+        for index, sentence_data in enumerate(sentences):
+            if isinstance(sentence_data, dict) and sentence_data.get('deleted', False):
+                if word not in deleted_sentences:
+                    deleted_sentences[word] = []
+                deleted_sentences[word].append(index)
+
+    # 실제 사용된 단어들만 필터링
+    used_words = {word for word in word_sentences if word_sentences[word]}  # 단어 문장에 무언가 있을 때만 추가
+    filtered_levels = {level: [word for word in words if word['word'] in used_words] for level, words in levels.items()}
+    print("Levels data available for rendering:", levels)  # 데이터가 있는지 확인
+    return render_template('compare_results.html', levels=filtered_levels, deleted_sentences=deleted_sentences, used_words=used_words, ebook_title=review_session.ebook_title, word_sentences=word_sentences, reviewer_name=reviewer_name)
+
+
+@app.template_filter('enumerate')
+def jinja2_filter_enumerate(sequence, start=1):
+    return enumerate(sequence, start)
 
 
 @app.route('/save_word_counts', methods=['POST'])

@@ -16,77 +16,98 @@
             margin-bottom: 30px;
         }
         form {
-            background-color: #ffffff;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1); /* Updated shadow for more depth */
-            width: 80%; /* Wider form on wide screens */
-            max-width: 800px; /* Maximum width to maintain form usability */
-            margin: auto;
-            text-align: left;
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1); /* Updated shadow for more depth */
+        width: 80%; /* Wider form on wide screens */
+        max-width: 800px; /* Maximum width to maintain form usability */
+        margin: 20px auto;
+        text-align: left;
         }
-        .form-group {
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center; /* Aligns label and input on the same line */
-            justify-content: space-between;
-        }
-        label {
-            font-weight: bold;
-            color: #495057;
-            margin-right: 10px; /* Space between label and input */
-            flex-basis: 30%; /* Gives label a consistent width */
-            text-align: right; /* Aligns text to the right */
-        }
-        input[type="text"], input[type="file"] {
-            width: 70%; /* Input takes the rest of the form-group width */
-            padding: 8px; /* Uniform padding for better touch interaction */
-            font-size: 16px; /* Appropriate font size for readability */
-        }
-        button[type="submit"] {
-            background-color: #007bff; /* Primary blue for button */
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 18px; /* Slightly larger font size for the button */
-            width: 50%; /* Makes the button wider */
-            margin: 20px auto; /* Center the button and provide space above and below */
-            display: block; /* Ensures the button is centered as a block */
-        }
-        button[type="submit"]:hover {
-            background-color: #0056b3; /* Darker blue on hover for effect */
-        }
-        ul.list-group {
-            text-align: left; /* Aligns text to the left in the list */
-            padding: 0;
-            width: 80%; /* Same width as the form for consistency */
-            max-width: 800px; /* Same max width as the form */
-            margin: 30px auto; /* Space above and below the list */
-        }
-        li.list-group-item {
-            background-color: #e9ecef; /* Light gray background for list items */
-            padding: 10px 20px;
-            border: 1px solid #dee2e6; /* Subtle borders for items */
-            list-style-type: none; /* Remove default list style */
-            margin-top: 5px; /* Space between items */
-            font-size: 16px; /* Increased font size for readability */
-            color: #343a40; /* Color consistency with headings */
-            display: flex;
-            justify-content: space-between; /* Spreads content across the horizontal space */
-            align-items: center; /* Aligns items vertically */
-        }
-        a.btn {
-            padding: 5px 10px;
-            border-radius: 5px;
-            text-decoration: none; /* Removes underline from links */
-            color: white; /* Ensures text is white for visibility */
-            font-size: 14px; /* Appropriate sizing for button texts */
-        }
-        a.btn-secondary { background-color: #6c757d; } /* Secondary button color */
-        a.btn-success { background-color: #28a745; } /* Success button color */
-        a.btn-info { background-color: #17a2b8; } /* Info button color */
+        .form-group, .search-group, .review-group {
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+    }
+    label {
+        font-weight: bold;
+        color: #495057;
+        margin-right: 10px;
+    }
+    input[type="text"], input[type="file"] {
+        flex-grow: 1; /* Allows input to fill available space */
+        padding: 8px;
+    }
+    input.short-input {
+        width: 150px; /* Explicitly set a narrow width for name inputs */
+        margin-right: 10px; /* Space between input and button */
+    }
+    button[type="submit"] {
+        background-color: #007bff;
+        color: white;
+        border: none;
+        padding: 8px 16px; /* Reduced padding */
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px; /* Smaller font size */
+        margin-left: 10px; /* Adds space between input and button */
+    }
+    button[type="submit"]:hover {
+        background-color: #0056b3;
+    }
+    ul.list-group {
+        text-align: left;
+        padding: 0;
+        width: 80%;
+        max-width: 800px;
+        margin: 30px auto;
+    }
+    li.list-group-item {
+        background-color: #e9ecef;
+        padding: 10px;
+        border: 1px solid #dee2e6;
+        list-style-type: none;
+        margin-top: 5px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 16px;
+    }
+    .ebook-title {
+        flex-grow: 1; /* Allows the title to take up any extra space if needed */
+        font-size: 20px; /* Larger font for ebook titles */
+        font-weight: bold; /* Makes the font bold */
+    }
+    .search-group {
+        display: flex; /* Align items horizontally */
+        justify-content: space-between;
+        margin-bottom: 10px;
+    }
+    .review-group {
+        flex-shrink: 0; /* Prevents the review group from shrinking */
+        margin-left: auto;  /* 오른쪽 정렬을 위해 왼쪽에 자동 마진을 추가 */
+        flex-basis: 30%; /* 시작 크기를 전체 공간의 30%로 설정 */
+        max-width: 300px; /* 최대 가로 크기를 300px로 제한 */
+    }
+    .search-group input, .review-group input {
+        flex-grow: 1; /* Input fields take up the available space */
+        margin-right: 10px; /* Space between input and button */
+    }
+    .search-group button, .review-group button {
+        white-space: nowrap; /* Prevent text wrapping on buttons */
+    }
+    .btn-success[disabled] {
+        background-color: #2e7031; /* 어두운 녹색으로 변경 */
+        border-color: #2e7031;
+        opacity: 0.65; /* 버튼을 약간 흐리게 표시 */
+        cursor: not-allowed; /* 마우스 오버 시 금지 아이콘 표시 */
+    }
+
+    .btn-success[disabled]:hover {
+        background-color: #2e7031; /* 호버 상태에서도 색상 유지 */
+        border-color: #2e7031;
+    }
     </style>      
 </head>
 <body>
@@ -110,17 +131,37 @@
         
 
         <h3>1차 검토 완료된 전자책 목록</h3>
+        <form action="/" method="get" class="search-group">
+            <input type="text" name="search" placeholder="책 제목을 입력하세요" class="form-control">
+            <button type="submit" class="btn btn-info">검색</button>
+        </form>
         <ul class="list-group">
             {% for book in reviewed_books %}
             <li class="list-group-item">
-                {{ book.ebook_title }}
+                <span class="ebook-title">{{ book.ebook_title|replace('.pdf', '') }}</span>
+                <!-- Form to start second review -->
                 {% if book.review_stage == 'first_review_complete' %}
-                    <a href="/start_second_review/{{ book.id }}" class="btn btn-sm btn-secondary">2차 검토 시작</a>
+                <form action="/start_second_review/{{ book.id }}" method="post" class="review-group">
+                    <input type="text" name="reviewer_name" placeholder="이름을 입력하세요" required class="short-input">
+                    <button type="submit" class="btn btn-sm btn-secondary">2차 검토 시작</button>
+                </form>
                 {% elif book.review_stage == 'second_review_started' %}
-                    <a href="/complete_second_review/{{ book.id }}" class="btn btn-sm btn-success">2차 검토 완료</a>
+                <form action="/complete_second_review/{{ book.id }}" method="post" class="review-group">
+                    <input type="text" name="reviewer_name" placeholder="이름을 입력하세요" required class="short-input">
+                    <button type="submit" class="btn btn-sm btn-success">2차 검토 완료</button>
+                </form>
+                {% endif %}
+                <!-- Form to compare results -->
+                {% if book.review_stage == 'review_complete' %}
+                <form action="/final_results/{{ book.id }}" method="post" class="review-group">
+                    <button type="submit" class="btn btn-sm btn-success" disabled>최종 검토 완료</button>
+                </form>
                 {% endif %}
                 {% if book.review_stage == 'second_review_complete' %}
-                    <a href="/compare_results/{{ book.id }}" class="btn btn-sm btn-info">결과 비교 보기</a>
+                <form action="/start_third_review/{{ book.id }}" method="post" class="review-group">
+                    <input type="text" name="reviewer_name" placeholder="이름을 입력하세요" required class="short-input">
+                    <button type="submit" class="btn btn-sm btn-info">최종 검토 시작</button>
+                </form>
                 {% endif %}
             </li>
             {% endfor %}
