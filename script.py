@@ -3,6 +3,8 @@ from flask_session import Session
 from dotenv import load_dotenv
 load_dotenv()
 import os
+import tempfile
+from werkzeug.utils import secure_filename
 import fitz  # PyMuPDF
 from collections import defaultdict
 import json
@@ -31,8 +33,8 @@ app.config['SESSION_USE_SIGNER'] = True
 app.config['SESSION_COOKIE_NAME'] = 'your_session_cookie'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SECURE'] = True  # HTTPS 환경에서만 사용할 경우
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL').replace("postgres://", "postgresql://", 1)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL').replace("postgres://", "postgresql://", 1)
 db = SQLAlchemy(app)
 app.config['SESSION_SQLALCHEMY'] = db  # 세션에 사용할 SQLAlchemy 인스턴스 지정
 migrate = Migrate(app, db)
@@ -147,26 +149,34 @@ def upload_file():
         db.session.commit()
 
         unique_id = uuid.uuid4().hex
-        wordlist_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{unique_id}_wordlist.xlsx")
-        ebook_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{unique_id}_ebook.pdf")
-        wordlist_file.save(wordlist_path)
-        ebook_file.save(ebook_path)
+        # 임시 디렉토리 생성
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 안전한 파일 이름 생성
+            wordlist_filename = secure_filename(wordlist_file.filename)
+            ebook_filename = secure_filename(ebook_file.filename)
 
-        levels = read_excel_file(wordlist_path)
-        all_words = [word['word'] for level_words in levels.values() for word in level_words]
-        word_sentences_dict, word_counts_dict = find_word_sentences(ebook_path, all_words, unique_id)
+            # 임시 경로에 파일 저장
+            wordlist_path = os.path.join(temp_dir, wordlist_filename)
+            ebook_path = os.path.join(temp_dir, ebook_filename)
+            wordlist_file.save(wordlist_path)
+            ebook_file.save(ebook_path)
 
-        new_session = ReviewSession(
-            id=unique_id,
-            ebook_title=ebook_file.filename,
-            user_id=new_user.id,
-            review_stage='not_reviewed',
-            levels=levels,
-            word_sentences=word_sentences_dict,
-            final_word_counts=word_counts_dict
-        )
-        db.session.add(new_session)
-        db.session.commit()
+
+            levels = read_excel_file(wordlist_path)
+            all_words = [word['word'] for level_words in levels.values() for word in level_words]
+            word_sentences_dict, word_counts_dict = find_word_sentences(ebook_path, all_words, unique_id)
+
+            new_session = ReviewSession(
+                id=unique_id,
+                ebook_title=ebook_file.filename,
+                user_id=new_user.id,
+                review_stage='not_reviewed',
+                levels=levels,
+                word_sentences=word_sentences_dict,
+                final_word_counts=word_counts_dict
+            )
+            db.session.add(new_session)
+            db.session.commit()
 
         return redirect(url_for('show_results', unique_id=unique_id))
     
