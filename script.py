@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, redirect, url_for, session, jsonify
+from flask import Flask, request, render_template, redirect, url_for, session, jsonify, current_app
 from flask_session import Session
 from dotenv import load_dotenv
 load_dotenv()
@@ -681,10 +681,18 @@ def update_review():
 
 @app.route('/download_table_excel/<unique_id>', methods=['POST'])
 def download_table_excel(unique_id):
+    # Ensure the upload directory exists
+    upload_folder = os.path.join(current_app.root_path, app.config['UPLOAD_FOLDER'])
+    os.makedirs(upload_folder, exist_ok=True)
+
+
     # Extract and parse the table data from the form
     table_data = request.form.get('tableData')
     ebook_title = request.form.get('ebookTitle')  # Get the ebook title
 
+    if not table_data:
+        return "No data provided", 400
+    
     if table_data:
         data = json.loads(table_data)
         count_data = data.get('countData')
