@@ -138,11 +138,10 @@ def upload_file():
     if request.method == 'POST':
         # POST 요청 처리: 파일 업로드 및 사용자 정보 저장
         user_name = request.form.get('username')
-        wordlist_file = request.files.get('wordlist')
         ebook_file = request.files.get('ebook')
 
-        if not user_name or not wordlist_file or not ebook_file:
-            return render_template('upload.html', message='Please enter your name and upload files.')
+        if not user_name or not ebook_file:
+            return render_template('upload.html', message='Please enter your name and upload the ebook file.')
 
         new_user = User(name=user_name)
         db.session.add(new_user)
@@ -152,13 +151,10 @@ def upload_file():
         # 임시 디렉토리 생성
         with tempfile.TemporaryDirectory() as temp_dir:
             # 안전한 파일 이름 생성
-            wordlist_filename = secure_filename(wordlist_file.filename)
             ebook_filename = secure_filename(ebook_file.filename)
-
-            # 임시 경로에 파일 저장
-            wordlist_path = os.path.join(temp_dir, wordlist_filename)
             ebook_path = os.path.join(temp_dir, ebook_filename)
-            wordlist_file.save(wordlist_path)
+            # 임시 경로에 파일 저장
+            wordlist_path = 'resources/wordlist.xlsx'
             ebook_file.save(ebook_path)
 
 
