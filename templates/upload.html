@@ -89,6 +89,7 @@
         margin-left: auto;  /* 오른쪽 정렬을 위해 왼쪽에 자동 마진을 추가 */
         flex-basis: 30%; /* 시작 크기를 전체 공간의 30%로 설정 */
         max-width: 300px; /* 최대 가로 크기를 300px로 제한 */
+        min-width: 300px; /* 최소 가로 크기를 300px로 고정하여 일관된 크기 유지 */
     }
     .search-group input, .review-group input {
         flex-grow: 1; /* Input fields take up the available space */
@@ -108,11 +109,48 @@
         background-color: #2e7031; /* 호버 상태에서도 색상 유지 */
         border-color: #2e7031;
     }
-    </style>      
+    .survey-links {
+    text-align: center;
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+
+.survey-links button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    margin: 5px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.survey-links button:hover {
+    background-color: #0056b3;
+}
+
+.survey-description {
+    text-align: center;
+    font-size: 14px;
+    margin-top: 10px;
+}
+
+    </style>
+      
 </head>
 <body>
     <div class="container">
         <h2>단어 목록과 전자책 업로드 및 분석</h2>
+        <div class="survey-links">
+            <p>설문 조사 링크:</p>
+            <button onclick="window.location.href='http://ksurv.kr/akM3Nj09Ojw';">비문학</button>
+            <button onclick="window.location.href='http://ksurv.kr/akM3Nj09Oj0';">문학</button>
+        </div>
+        <p class="survey-description">
+            * 현재 분석하는 책이 <strong>문학 도서</strong>라면 '문학' 버튼 클릭하여 설문,
+            <br>* 현재 분석하는 책이 <strong>비문학 도서</strong>라면 '비문학' 버튼 클릭하여 설문
+        </p>
         <form action="/" method="post" enctype="multipart/form-data">
             <div class="form-group">
                 <label for="username">사용자 이름:</label>
@@ -164,6 +202,6 @@
         </ul>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script> 
 </body>
 </html>
