@@ -12,9 +12,12 @@
             text-align: center;
         }
         h2, h3 {
-            color: #2c3e50; /* Darker shade for better contrast */
-            margin-bottom: 30px;
-        }
+    font-size: 32px; /* 제목의 크기를 키웁니다 */
+    color: #2c3e50; /* 진한 색상으로 눈에 잘 띄게 합니다 */
+    font-weight: bold; /* 글꼴을 굵게 합니다 */
+    text-align: center; /* 제목을 중앙 정렬합니다 */
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1); /* 약간의 그림자를 추가하여 입체감을 줍니다 */
+}
         form {
         background-color: #ffffff;
         padding: 20px;
@@ -30,6 +33,10 @@
         display: flex;
         align-items: center;
     }
+    .form-group button {
+    margin: 0 auto; /* 자동으로 여백을 주어 가운데 정렬 */
+    display: block; /* 블록 레벨 요소로 변경 */
+}
     label {
         font-weight: bold;
         color: #495057;
@@ -52,6 +59,7 @@
         cursor: pointer;
         font-size: 14px; /* Smaller font size */
         margin-left: 10px; /* Adds space between input and button */
+        text-align: center;
     }
     button[type="submit"]:hover {
         background-color: #0056b3;
@@ -110,9 +118,13 @@
         border-color: #2e7031;
     }
     .survey-links {
-    text-align: center;
+    text-align: left;
     margin-top: 20px;
     margin-bottom: 20px;
+    font-weight: bold;
+    color: #495057;
+    margin-right: 10px;
+    font-size: 16px;
 }
 
 .survey-links button {
@@ -131,9 +143,40 @@
 }
 
 .survey-description {
-    text-align: center;
+    text-align: left;
     font-size: 14px;
     margin-top: 10px;
+}
+.form-section {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            width: 80%;
+            max-width: 800px;
+            margin: 20px auto;
+            margin-bottom: 40px; /* 구분 간격 추가 */
+            border-bottom: 2px solid #ccc; /* 구분선 추가 */
+        }
+        .btn-nonfiction {
+    background-color: #3498db !important; /* 파란색 */
+    color: white !important;
+}
+
+.btn-fiction {
+    background-color: #2cbd00 !important; /* 초록색 */
+    color: white !important;
+}
+
+.btn-nonfiction:hover, .btn-fiction:hover {
+    background-color: #0056b3 !important; /* 호버 색상 변경 */
+    opacity: 0.8 !important;
+}
+
+.btn-center {
+    display: block !important;
+    margin: 0 auto !important;
+    width: fit-content !important;
 }
 
     </style>
@@ -141,30 +184,32 @@
 </head>
 <body>
     <div class="container">
-        <h2>단어 목록과 전자책 업로드 및 분석</h2>
-        <div class="survey-links">
-            <p>설문 조사 링크:</p>
-            <button onclick="window.location.href='http://ksurv.kr/akM3Nj09Ojw';">비문학</button>
-            <button onclick="window.location.href='http://ksurv.kr/akM3Nj09Oj0';">문학</button>
-        </div>
-        <p class="survey-description">
-            * 현재 분석하는 책이 <strong>문학 도서</strong>라면 '문학' 버튼 클릭하여 설문,
-            <br>* 현재 분석하는 책이 <strong>비문학 도서</strong>라면 '비문학' 버튼 클릭하여 설문
-        </p>
+        <h2>사고도구어 분석</h2>
+        <div class="form-section">
         <form action="/" method="post" enctype="multipart/form-data">
             <div class="form-group">
-                <label for="username">사용자 이름:</label>
-                <input type="text" id="username" name="username" class="form-control" required>
+                <label for="username">검토 위원 이름:</label>
+                <input type="text" id="username" name="username" placeholder="이름을 입력하세요" class="form-control" required>
             </div>
             <div class="form-group">
-                <label for="ebook">전자책 PDF 파일:</label>
+                <label for="ebook">전자책 PDF:</label>
                 <input type="file" name="ebook" id="ebook" class="form-control" required>
             </div>
-            <button type="submit" class="btn btn-primary">분석 시작</button>
+            <div class="survey-links">
+                <p>설문 조사 링크:</p>
+                <button onclick="window.location.href='http://ksurv.kr/akM3Nj09Ojw';" class="btn-nonfiction">비문학</button>
+                <button onclick="window.location.href='http://ksurv.kr/akM3Nj09Oj0';" class="btn-fiction">문학</button>
+            </div>
+            <p class="survey-description">
+                * 현재 분석하는 책이 <strong>문학 도서</strong>라면 '문학' 버튼 클릭하여 설문,
+                <br>* 현재 분석하는 책이 <strong>비문학 도서</strong>라면 '비문학' 버튼 클릭하여 설문
+            </p>
+            <button type="submit" class="btn btn-primary btn-center">분석 시작</button>
         </form>
-        
+        </div>
 
-        <h3>1차 검토 완료된 전자책 목록</h3>
+        <div class="form-section">
+        <h3>검토 도서 목록</h3>
         <form action="/" method="get" class="search-group">
             <input type="text" name="search" placeholder="책 제목을 입력하세요" class="form-control">
             <button type="submit" class="btn btn-info">검색</button>
@@ -188,18 +233,19 @@
                 <!-- Form to compare results -->
                 {% if book.review_stage == 'review_complete' %}
                 <form action="/final_results/{{ book.id }}" method="post" class="review-group">
-                    <button type="submit" class="btn btn-sm btn-success" disabled>최종 검토 완료</button>
+                    <button type="submit" class="btn btn-sm btn-success" disabled>3차 검토 완료</button>
                 </form>
                 {% endif %}
                 {% if book.review_stage == 'second_review_complete' %}
                 <form action="/start_third_review/{{ book.id }}" method="post" class="review-group">
                     <input type="text" name="reviewer_name" placeholder="이름을 입력하세요" required class="short-input">
-                    <button type="submit" class="btn btn-sm btn-info">최종 검토 시작</button>
+                    <button type="submit" class="btn btn-sm btn-info">3차 검토 시작</button>
                 </form>
                 {% endif %}
             </li>
             {% endfor %}
         </ul>
+    </div>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script> 

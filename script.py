@@ -274,7 +274,16 @@ def show_results():
 
     ebook_title = review_session.ebook_title[:-4] if review_session.ebook_title.endswith('.pdf') else review_session.ebook_title
 
-    return render_template('show_results.html', levels=filtered_levels, deleted_sentences=deleted_sentences, review_session=review_session, count_by_level=count_by_level, word_sentences=word_sentences, unique_id=unique_id, ebook_title=ebook_title)
+     # 검토 단계를 한국어로 변환하여 변수에 저장
+    review_stage_korean = {
+        'not_reviewed': '<1차 검토>',
+        'second_review_started': '<2차 검토>',
+        'first_review_complete': '<2차 검토>',
+        'second_review_complete': '<3차 검토>',
+        'review_complete': '<3차 검토>'
+    }.get(review_session.review_stage, '<미정의 단계>')   
+
+    return render_template('show_results.html', levels=filtered_levels, deleted_sentences=deleted_sentences, review_stage=review_session.review_stage, review_stage_korean=review_stage_korean, review_session=review_session, count_by_level=count_by_level, word_sentences=word_sentences, unique_id=unique_id, ebook_title=ebook_title)
 
 
 @app.route('/some_route')
@@ -521,7 +530,80 @@ def start_third_review(unique_id):
     review_session.deleted_sentences = deleted_sentences
     db.session.commit()
 
-    return redirect(url_for('show_results',unique_id=unique_id))
+    return redirect(url_for('compare_results',unique_id=unique_id))
+
+@app.route('/compare_results', methods=['GET'])
+def compare_results():
+    unique_id = request.args.get('unique_id')
+    
+    # UUID 검증
+    if not is_valid_uuid(unique_id):
+        return render_template('error.html', message="Invalid UUID format."), 400
+
+    # UUID 형식 변경 (필요한 경우)
+    if len(unique_id) == 32:  # UUID가 하이픈 없이 제공될 경우
+        formatted_uuid = f"{unique_id[:8]}-{unique_id[8:12]}-{unique_id[12:16]}-{unique_id[16:20]}-{unique_id[20:]}"
+        unique_id = formatted_uuid
+
+    review_session = ReviewSession.query.filter_by(id=unique_id).first()
+    if review_session:
+        # JSON 필드인 'deleted_sentences'를 처리하는 로직 수정
+        if isinstance(review_session.deleted_sentences, str):
+            try:
+                deleted_sentences = json.loads(review_session.deleted_sentences)
+            except json.JSONDecodeError as e:
+                logging.error(f"JSON decoding error: {e}")
+                return render_template('error.html', message="Error decoding deleted sentences."), 400
+        elif isinstance(review_session.deleted_sentences, dict):
+            deleted_sentences = review_session.deleted_sentences
+        else:
+            deleted_sentences = {}  # 기본값 설정
+        logging.debug(f"Loaded deleted_sentences: {review_session.deleted_sentences}")
+        # 추가적으로 'levels' 필드가 필요하다면 여기서 처리
+        levels = review_session.levels if review_session.levels else {}
+        
+
+    if not review_session:
+        logging.error(f"No valid session found for ID: {unique_id}")
+        return render_template('error.html', message="No valid session found for the given ID."), 404
+    final_word_counts = review_session.final_word_counts or {}
+    levels = review_session.levels
+    try:
+        word_sentences = review_session.word_sentences
+
+        # 데이터 로드 후 타입 확인 및 변환
+        if isinstance(word_sentences, list) and len(word_sentences) > 0:
+            # 리스트 형태인 경우 첫 번째 요소 사용 (이 예제에서는 첫 번째 요소가 dict라고 가정)
+            word_sentences = word_sentences[0] if isinstance(word_sentences[0], dict) else {}
+        
+        if not isinstance(word_sentences, dict):
+            raise ValueError("Word sentences data is not in the correct format.")
+
+    except ValueError as e:
+        return render_template('error.html', message=str(e)), 400
+    count_by_level = {}
+    for level, words in levels.items():
+        count = 0
+        for word_info in words:
+            word = word_info['word']
+            count += final_word_counts.get(word, 0)
+        count_by_level[level] = count
+    # 실제 사용된 단어들만 필터링
+    used_words = {word for word in word_sentences if word_sentences[word]}  # 단어 문장에 무언가 있을 때만 추가
+    filtered_levels = {level: [word for word in words if word['word'] in used_words] for level, words in levels.items()}
+
+    ebook_title = review_session.ebook_title[:-4] if review_session.ebook_title.endswith('.pdf') else review_session.ebook_title
+
+     # 검토 단계를 한국어로 변환하여 변수에 저장
+    review_stage_korean = {
+        'not_reviewed': '<1차 검토>',
+        'second_review_started': '<2차 검토>',
+        'first_review_complete': '<2차 검토>',
+        'second_review_complete': '<3차 검토>',
+        'review_complete': '<3차 검토>'
+    }.get(review_session.review_stage, '<미정의 단계>')   
+
+    return render_template('compare_results.html', levels=filtered_levels, deleted_sentences=deleted_sentences, review_stage=review_session.review_stage, review_stage_korean=review_stage_korean, review_session=review_session, count_by_level=count_by_level, word_sentences=word_sentences, unique_id=unique_id, ebook_title=ebook_title)
 
 
 @app.route('/some_route')
@@ -554,7 +636,7 @@ def final_results():
         'not_reviewed': '미검토',
         'first_review_complete': '1차 검토',
         'second_review_complete': '2차 검토',
-        'review_complete': '검토 완료'
+        'review_complete': '3차 검토'
     }.get(review_session.review_stage, '미정의 단계')
 
     user = User.query.get(review_session.user_id)
@@ -710,50 +792,6 @@ def download_table_excel(unique_id):
     return "No data provided", 400
 
 
-@app.route('/compare_results/<unique_id>', methods=['POST'])
-def compare_results(unique_id):
-    reviewer_name = request.form.get('reviewer_name')
-    if not reviewer_name:
-        return render_template('error.html', message="Reviewer name is required."), 400
-
-    # 사용자 찾기 또는 생성
-    user = User.query.filter_by(name=reviewer_name).first()
-    if not user:
-        user = User(name=reviewer_name)
-        db.session.add(user)
-        db.session.commit()
-
-    # 세션 데이터 조회
-    review_session = ReviewSession.query.filter_by(id=unique_id).first()
-    if not review_session:
-        print("No valid session found for ID:", unique_id)
-        return render_template('error.html', message="No valid session found."), 404
-        
-    deleted_sentences = {}  # 모든 상황에서 사용될 수 있도록 초기화
-    logging.basicConfig(level=logging.DEBUG)
-
-    # 데이터 형식 보장
-    try:
-        word_sentences = json.loads(review_session.word_sentences) if isinstance(review_session.word_sentences, str) else review_session.word_sentences
-    except json.JSONDecodeError:
-        return render_template('error.html', message="JSON decoding error.")
-    except ValueError as e:
-        return render_template('error.html', message=str(e))
-    
-    levels = review_session.levels
-    deleted_sentences = {}
-    for word, sentences in word_sentences.items():
-        for index, sentence_data in enumerate(sentences):
-            if isinstance(sentence_data, dict) and sentence_data.get('deleted', False):
-                if word not in deleted_sentences:
-                    deleted_sentences[word] = []
-                deleted_sentences[word].append(index)
-
-    # 실제 사용된 단어들만 필터링
-    used_words = {word for word in word_sentences if word_sentences[word]}  # 단어 문장에 무언가 있을 때만 추가
-    filtered_levels = {level: [word for word in words if word['word'] in used_words] for level, words in levels.items()}
-    print("Levels data available for rendering:", levels)  # 데이터가 있는지 확인
-    return render_template('compare_results.html', levels=filtered_levels, deleted_sentences=deleted_sentences, used_words=used_words, ebook_title=review_session.ebook_title, word_sentences=word_sentences, reviewer_name=reviewer_name)
 
 
 @app.template_filter('enumerate')

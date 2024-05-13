@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>{{ ebook_title }} 분석 결과</title>
+    <title>"{{ ebook_title }}" 분석 결과</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -27,9 +27,15 @@
             transition: background-color 0.3s ease;
             font-size: 15px; /* Increase font size */
         }
-        .level-button:hover, .level-button.active {
-            background-color: #0056b3;
+        .level-button:hover {
+            background-color: #000a63;
         }
+        .level-button.active {
+    background-color: #00ff55; /* 진한 파란색으로 변경 */
+    color: white; /* 텍스트 색상은 흰색으로 유지 */
+    border: 1px solid #004080; /* 경계선 추가 */
+}
+
         .word-container {
             margin-top: 20px;
             background-color: #fff;
@@ -108,11 +114,12 @@
         .content-container {
             text-align: left; /* 콘텐츠를 왼쪽 정렬 */
             flex-grow: 1; /* content-container가 가능한 많은 공간을 차지하도록 함 */
+            padding-right: 20px; /* 오른쪽 패딩 추가 */
         }
 
         .review-button-container {
-            margin-left: 10px; /* 좌측의 요소와 거리 생성 */
-            padding: 5px; /* 내부 공간 추가 */
+            text-align: right; /* 버튼을 오른쪽 정렬 */
+            width: 120px; /* 고정된 너비 설정 */
         }
         .delete-btn:hover {
             background-color: #ff2a2d;
@@ -121,6 +128,7 @@
             display: flex;
             align-items: center; /* 가로 중심으로 요소들을 정렬 */
             width: 100%; /* 너비를 전체로 설정 */
+            justify-content: flex-start; /* 요소들을 왼쪽 정렬 */
         }
 
         .review-button {
@@ -152,9 +160,24 @@
         div {
             text-align: center;
         }
-        .deleted {
-            color: red;
-        }
+        .struck-through {
+    text-decoration: line-through; /* 가운데 선 추가 */
+    color: #999; /* 색상을 연하게 조정 */
+}
+.header-container {
+    text-align: center; /* 가운데 정렬로 변경 */
+    display: flex;
+    align-items: center; /* 세로 중앙 정렬 */
+    justify-content: center; /* 요소 사이에 공간을 최대로 확보 */
+    margin-bottom: 20px;
+}
+
+.review-stage-box {
+    text-align: right;
+    color: rgb(196, 0, 0);
+    border-radius: 10px;
+    font-size: 30px;
+}
 
 
     </style>
@@ -223,7 +246,7 @@ function toggleSentences(word) {
             var sentenceDiv = element.parentNode;
             var checkbox = sentenceDiv.querySelector('input[type="checkbox"]');
             checkbox.checked = false;
-            sentenceDiv.style.display = "none";
+            sentenceDiv.classList.add('struck-through');  // 가운데 선 스타일 적용
 
             var countElement = document.getElementById("count-" + word);
             var count = parseInt(countElement.innerText) - 1;
@@ -309,7 +332,10 @@ function toggleSentences(word) {
         </script>       
 </head>
 <body>
-    <h2>{{ ebook_title }} 분석 결과</h2>
+    <div class="header-container">
+        <h2 style="text-align: center;">"{{ ebook_title }}" 분석 결과</h2>
+        <div class="review-stage-box">{{ review_stage_korean }}</div>
+    </div>
     <div>
         <button id="level-1-button" class="level-button" onclick="showLevel('1')">Level 1</button>
         <button id="level-2-button" class="level-button" onclick="showLevel('2')">Level 2</button>
@@ -334,7 +360,7 @@ function toggleSentences(word) {
                         </span>
                         </div>
                         <div class="review-button-container">
-                        <button class="review-button" onclick="reviewToggle(this, '{{ word['word'] }}');">검토하기</button>
+                        <button class="review-button" onclick="reviewToggle(this, '{{ word['word'] }}');">검토</button>
                         </div>
                     </div>
                     <div id="sentences-{{ word['word'] }}" class="sentence-container">
@@ -343,7 +369,7 @@ function toggleSentences(word) {
                             <div class="sentence {{ 'deleted' if loop.index0 in deleted_sentences.get(word['word'], []) }}">
                                 <input type="checkbox" name="sentences" value="{{ sentence }}" checked>
                                 {{ sentence }}
-                                <button type="button" class="delete-btn" onclick="deleteSentence(this, '{{ word['word'] }}', {{ loop.index0 }})">삭제</button>
+                                <button type="button" class="delete-btn" onclick="deleteSentence(this, '{{ word['word'] }}', {{ loop.index0 }})">제외</button>
                             </div>
                             {% endfor %}
                         {% endif %}
@@ -360,24 +386,44 @@ function toggleSentences(word) {
     <script>
     function reviewToggle(button, word) {
         var sentenceDiv = document.getElementById("sentences-" + word);
-        if (button.innerText === '검토하기') {
+        if (button.innerText === '검토') {
             sentenceDiv.style.display = 'block';
-            button.innerText = '완료하기';
+            button.innerText = '완료';
             button.classList.remove('completed-button'); // Remove completed state class if exists
             button.style.backgroundColor = '#28a745'; // Green color for review in progress
-        } else if (button.innerText === '완료하기') {
+        } else if (button.innerText === '완료') {
             sentenceDiv.style.display = 'none';
-            button.innerText = '검토 완료'; // Change text to 'Completed'
+            button.innerText = '완료'; // Change text to 'Completed'
             button.classList.add('completed-button'); // Add completed state class to keep it green
             button.style.backgroundColor = ''; // Make sure to clear any inline styles
         }
 }
-        function showLevel(level) {
-            var divs = document.querySelectorAll('div[id^="level"]');
-            divs.forEach(div => div.style.display = 'none');
-            var levelDiv = document.getElementById('level-' + level);
-            levelDiv.style.display = 'block';
-        }
+document.addEventListener('DOMContentLoaded', function() {
+    showLevel('1');
+});
+function showLevel(level) {
+    // 모든 레벨의 컨테이너를 숨깁니다.
+    var containers = document.querySelectorAll('.word-container');
+    containers.forEach(function(container) {
+        container.style.display = 'none';
+    });
+
+    // 선택된 레벨의 컨테이너만 보여줍니다.
+    var selectedContainer = document.getElementById('level-' + level);
+    if (selectedContainer) {
+        selectedContainer.style.display = 'block';
+    }
+
+    // 버튼의 활성화 상태 업데이트
+    var buttons = document.querySelectorAll('.level-button');
+    buttons.forEach(function(button) {
+        button.classList.remove('active');
+    });
+    var activeButton = document.getElementById('level-' + level + '-button');
+    if (activeButton) {
+        activeButton.classList.add('active');
+    }
+}
 
         function review(word) {
             // Logic to display sentences for the word

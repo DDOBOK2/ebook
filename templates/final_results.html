@@ -60,7 +60,7 @@
             color: #0056b3;  /* Theme color for captions */
         }
         .info-container {
-            text-align: center;
+            text-align: left;
             margin-bottom: 20px;
             padding: 10px;
             background-color: #e9ecef;
@@ -107,25 +107,16 @@
     </style>
 </head>
 <body>
-    <h2>사고도구어 수준별 분석 결과</h2>
+    <h2>"{{ ebook_title }}" 사고도구어 수준별 분석 결과</h2>
     <div class="info-container">
-        <h2>{{ ebook_title }}</h2>
-        <p>검토한 사람: {{ reviewer_name }}</p>
+        <p>검토 위원: {{ reviewer_name }}</p>
         <p>분석 시간: {{ analysis_time.strftime('%Y-%m-%d %H:%M:%S') }}</p>
         <p>검토 단계: {{ review_stage }}</p>
     </div>    
     <div class="content-wrapper">
-        <div class="chart-container">
-            <canvas id="wordCountByLevel"></canvas>
-        </div>
-        <div class="chart-container">
-            <canvas id="sumCountsByLevel"></canvas>
-        </div>
-    </div>
-    <div class="content-wrapper">
         <div class="table-container">
             <table>
-                <caption>수준별 단어 개수</caption>
+                <caption>사고도구어 수준별 개수</caption>
                 <thead>
                     <tr>
                         <th>1수준</th>
@@ -146,7 +137,7 @@
         </div>
         <div class="table-container">
             <table>
-                <caption>수준별 단어 총 횟수</caption>
+                <caption>사고도구어 수준별 총 출현수</caption>
                 <thead>
                     <tr>
                         <th>1수준</th>
@@ -166,9 +157,18 @@
             </table>
         </div>
     </div>
+    <div class="content-wrapper">
+        <div class="chart-container">
+            <canvas id="wordCountByLevel"></canvas>
+        </div>
+        <div class="chart-container">
+            <canvas id="sumCountsByLevel"></canvas>
+        </div>
+    </div>
     <div class="button-container">
         <button onclick="window.location.href='/'" style="padding: 10px 20px; font-size: 16px; background-color: #007bff; color: white; border: none; border-radius: 8px; cursor: pointer;">처음으로</button>
-        <button type="button" class="button" onclick="submitTableData()">Download Excel</button>
+        <button type="button" class="button" onclick="submitTableData()">데이터 다운로드</button>
+        <button type="button" class="button" onclick="captureScreen()">화면 캡쳐</button>
     </div>
     <form id="excelExportForm" action="{{ url_for('download_table_excel', unique_id=unique_id) }}" method="post">
         <input type="hidden" name="tableData" id="tableData" value=""/>
@@ -200,9 +200,9 @@
                 data: {
                     labels: Object.keys(countData),
                     datasets: [{
-                        label: '수준별 단어 수',
+                        label: '사고도구어 수준별 개수',
                         data: Object.values(countData),
-                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        backgroundColor: 'rgba(144, 238, 144, 0.5)',
                         borderColor: 'rgba(255, 99, 132, 1)',
                         borderWidth: 1
                     }]
@@ -223,9 +223,9 @@
                 data: {
                     labels: Object.keys(sumCountsData),
                     datasets: [{
-                        label: '수준별 단어 총 횟수',
+                        label: '사고도구어 수준별 총 출현수',
                         data: Object.values(sumCountsData),
-                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        backgroundColor: 'rgba(255, 165, 0, 0.5)',
                         borderColor: 'rgba(54, 162, 235, 1)',
                         borderWidth: 1
                     }]
@@ -267,6 +267,19 @@
     // Submit the form
     document.getElementById('excelExportForm').submit();
 }
-    </script>        
+function captureScreen() {
+    html2canvas(document.body).then(canvas => {
+        // 캔버스를 이미지로 변환
+        const image = canvas.toDataURL("image/png").replace("image/png", "image/octet-stream");
+        
+        // 이미지 다운로드
+        const link = document.createElement('a');
+        link.download = '{{ review_stage }}_{{ ebook_title | replace('.pdf', '') }}.png';
+        link.href = image;
+        link.click();
+    });
+}
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.3.2/html2canvas.min.js"></script>        
 </body>
 </html>
