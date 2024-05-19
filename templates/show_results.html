@@ -178,7 +178,11 @@
     border-radius: 10px;
     font-size: 30px;
 }
-
+    /* 완료 버튼 숨기기 */
+    #finishButton {
+        display: none;
+        text-align: right;
+    }
 
     </style>
     <script>
@@ -219,7 +223,14 @@
     if (activeButton) {
         activeButton.classList.add('active');
     }
-}
+            // Level 4일 때만 완료 버튼 보이기
+            var finishButton = document.getElementById('finishButton');
+        if (level === '4') {
+            finishButton.style.display = 'block';
+        } else {
+            finishButton.style.display = 'none';
+        }
+    }
 
 
 
@@ -235,12 +246,12 @@ function toggleSentences(word) {
     console.log('Sentences found:', sentences.length);
     sentences.forEach(function(sentence, index) {
         console.log('Checking sentence index:', index);
-        if (deleted_sentences[word] && deleted_sentences[word].includes(index)) {
-            console.log('Marking deleted:', sentence);
-            sentence.classList.add('deleted');
+        if (reviewStatus[word] && reviewStatus[word].deleted_sentences && reviewStatus[word].deleted_sentences.includes(index)) {
+                    console.log('Marking deleted:', sentence);
+                    sentence.classList.add('struck-through');
+                }
+            });
         }
-    });
-}
         
         function deleteSentence(element, word, sentenceIndex, deletionField) {
             var sentenceDiv = element.parentNode;
@@ -251,6 +262,11 @@ function toggleSentences(word) {
             var countElement = document.getElementById("count-" + word);
             var count = parseInt(countElement.innerText) - 1;
             countElement.innerText = count.toString();
+
+            if (!reviewStatus[word]) {
+                reviewStatus[word] = { deleted_sentences: [] };
+            }
+            reviewStatus[word].deleted_sentences.push(sentenceIndex);
 
             var requestData = {
                 unique_id: uniqueId,  // 확인: 변수가 정의되어 있어야 함
@@ -353,7 +369,7 @@ function toggleSentences(word) {
                         (<span class="kanji">{{ word['kanji'] }}</span>) - <span class="meaning">{{ word['meaning'] }}</span>
                         <span id="count-{{ word['word'] }}">
                             {% if word_sentences[word['word']] %}
-                                {{ word_sentences[word['word']]|length }}
+                                {{ word_sentences[word['word']]|length - (deleted_sentences.get(word['word'], [])|length) }}
                             {% else %}
                                 0
                             {% endif %}
@@ -379,11 +395,49 @@ function toggleSentences(word) {
             </div>
             {% endfor %}
         </div>
-               
+                    
+
     <div style="text-align: center; margin-top: 20px;">
-        <button type="button" id="finishButton" onclick="calculateAndSendSums()" class="finish-button" style="padding: 10px 20px; font-size: 16px; border-radius: 5px; background-color: #007bff; color: white; border: none; cursor: pointer;">완료</button>
+        <button type="button" id="finishButton" onclick="calculateAndSendSums()" class="finish-button" style="padding: 10px 20px; font-size: 16px; border-radius: 5px; background-color: #007bff; color: white; border: none; cursor: pointer;">제출</button>
     </div>
     <script>
+            document.addEventListener('DOMContentLoaded', function() {
+        fetch(`/load_review_status/{{ unique_id }}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    reviewStatus = data.review_status || {};
+
+                    // 각 단어의 상태를 반영
+                    for (const [word, status] of Object.entries(reviewStatus)) {
+                        if (status.deleted_sentences) {
+                            status.deleted_sentences.forEach(index => {
+                                const sentenceElement = document.querySelector(`#sentences-${word} .sentence:nth-child(${index + 1})`);
+                                if (sentenceElement) {
+                                    sentenceElement.classList.add('struck-through');
+                                }
+                            });
+                        }
+                    }
+                } else {
+                    console.error('Failed to load review status:', data.message);
+                }
+            }).catch(error => {
+                console.error('Error:', error);
+            });
+    });
+
+    function applyReviewStatus() {
+        for (const [word, status] of Object.entries(reviewStatus)) {
+            const button = document.querySelector(`.review-button[data-word="${word}"]`);
+            if (button) {
+                if (status === 'completed') {
+                    button.innerText = '완료';
+                    button.classList.add('completed-button');
+                }
+            }
+        }
+    }
     function reviewToggle(button, word) {
         var sentenceDiv = document.getElementById("sentences-" + word);
         if (button.innerText === '검토') {
@@ -396,34 +450,13 @@ function toggleSentences(word) {
             button.innerText = '완료'; // Change text to 'Completed'
             button.classList.add('completed-button'); // Add completed state class to keep it green
             button.style.backgroundColor = ''; // Make sure to clear any inline styles
+            reviewStatus[word] = 'completed';
         }
+        saveReviewStatus(); // 즉시 저장
 }
 document.addEventListener('DOMContentLoaded', function() {
     showLevel('1');
 });
-function showLevel(level) {
-    // 모든 레벨의 컨테이너를 숨깁니다.
-    var containers = document.querySelectorAll('.word-container');
-    containers.forEach(function(container) {
-        container.style.display = 'none';
-    });
-
-    // 선택된 레벨의 컨테이너만 보여줍니다.
-    var selectedContainer = document.getElementById('level-' + level);
-    if (selectedContainer) {
-        selectedContainer.style.display = 'block';
-    }
-
-    // 버튼의 활성화 상태 업데이트
-    var buttons = document.querySelectorAll('.level-button');
-    buttons.forEach(function(button) {
-        button.classList.remove('active');
-    });
-    var activeButton = document.getElementById('level-' + level + '-button');
-    if (activeButton) {
-        activeButton.classList.add('active');
-    }
-}
 
         function review(word) {
             // Logic to display sentences for the word
@@ -447,6 +480,7 @@ function showLevel(level) {
                   alert('Failed to update the review status.');
               });
         }
+
         document.addEventListener('DOMContentLoaded', function() {
     Object.keys(deleted_sentences).forEach(sessionId => {
         deleted_sentences[sessionId].forEach(index => {
@@ -458,6 +492,28 @@ function showLevel(level) {
     });
 });
 
+        var deleted_sentences = {{ deleted_sentences|tojson }};
+        var reviewStatus = {{ review_session.word_review_status|tojson }};
+
+function saveReviewStatus() {
+    fetch('/save_review_status', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({unique_id: "{{ unique_id }}", review_status: reviewStatus})
+    }).then(response => response.json())
+      .then(data => {
+          if (data.status === 'success') {
+              console.log('Review status saved successfully.');
+          } else {
+              console.error('Failed to save review status:', data.message);
+          }
+      }).catch(error => {
+          console.error('Error:', error);
+      });
+}
+
+window.addEventListener('beforeunload', saveReviewStatus);
+setInterval(saveReviewStatus, 30000); // 30초마다 자동 저장
     </script>
 </body>
 </html>

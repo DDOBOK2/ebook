@@ -23,8 +23,22 @@ from datetime import timedelta
 import logging
 from sqlalchemy.exc import SQLAlchemyError
 from flask import send_file
+from werkzeug.datastructures import MultiDict
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+
 
 app = Flask(__name__)
+from flask_mail import Mail, Message
+mail = Mail(app)
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'pbh1527@naver.com'
+app.config['MAIL_PASSWORD'] = 'leejunyoung18@'
 app.config['SECRET_KEY'] = 'your_secret_key'
 app.config['SESSION_TYPE'] = 'sqlalchemy'
 app.config['SESSION_PERMANENT'] = True
@@ -61,7 +75,7 @@ class ReviewSession(db.Model):
     final_word_counts = db.Column(db.JSON)  # 최종 단어 카운트 저장
     initial_word_counts = db.Column(db.JSON)  # 초기 단어 카운트 저장
     deleted_sentences = db.Column(db.JSON, default=dict)
-     
+    word_review_status = db.Column(db.JSON, default=dict)  # 단어별 검토 상태 저장 
 
     def __repr__(self):
         return f'<ReviewSession {self.ebook_title} - Stage: {self.review_stage}>'
@@ -185,11 +199,31 @@ def upload_file():
 
 def get_reviewed_books(search_query=''):
     query = ReviewSession.query.filter(
-        ReviewSession.review_stage.in_(['first_review_complete', 'second_review_complete', 'review_complete'])
+        ReviewSession.review_stage.in_(['not_reviewed', 'first_review_complete', 'second_review_started', 'second_review_complete', 'review_complete'])
     )
     if search_query:
         query = query.filter(ReviewSession.ebook_title.ilike(f'%{search_query}%'))
     return query.order_by(ReviewSession.created_at.desc()).all()
+
+@app.route('/save_review_status', methods=['POST'])
+def save_review_status():
+    data = request.get_json()
+    unique_id = data['unique_id']
+    review_status = data['review_status']
+
+    review_session = ReviewSession.query.filter_by(id=unique_id).first()
+    if review_session:
+        review_session.word_review_status = review_status
+        db.session.commit()
+        return jsonify({'status': 'success'}), 200
+    return jsonify({'status': 'error', 'message': 'Review session not found'}), 404
+
+@app.route('/load_review_status/<unique_id>', methods=['GET'])
+def load_review_status(unique_id):
+    review_session = ReviewSession.query.filter_by(id=unique_id).first()
+    if review_session:
+        return jsonify({'status': 'success', 'review_status': review_session.word_review_status}), 200
+    return jsonify({'status': 'error', 'message': 'Review session not found'}), 404
 
 
 @app.route('/create_user', methods=['POST'])
@@ -246,7 +280,6 @@ def show_results():
     if not review_session:
         logging.error(f"No valid session found for ID: {unique_id}")
         return render_template('error.html', message="No valid session found for the given ID."), 404
-    final_word_counts = review_session.final_word_counts or {}
     levels = review_session.levels
     try:
         word_sentences = review_session.word_sentences
@@ -257,10 +290,25 @@ def show_results():
             word_sentences = word_sentences[0] if isinstance(word_sentences[0], dict) else {}
         
         if not isinstance(word_sentences, dict):
-            raise ValueError("Word sentences data is not in the correct format.")
-
+            raise ValueError("Word sentences data is not in the correct format.")   
+    
     except ValueError as e:
         return render_template('error.html', message=str(e)), 400
+    
+    # JSON 필드인 'deleted_sentences'와 'word_sentences'를 처리하는 로직 수정
+    deleted_sentences = review_session.deleted_sentences or {}
+    if isinstance(deleted_sentences, str):
+        try:
+            deleted_sentences = json.loads(deleted_sentences)
+        except json.JSONDecodeError as e:
+            logging.error(f"JSON decoding error: {e}")
+            return render_template('error.html', message="Error decoding deleted sentences."), 400
+
+    # deleted_sentences를 second_review 필드로 필터링
+    first_review_deleted_sentences = deleted_sentences.get('first_review', {})
+    app.logger.debug(f"Second review deleted sentences: {first_review_deleted_sentences}")
+
+    final_word_counts = review_session.final_word_counts or {}
     count_by_level = {}
     for level, words in levels.items():
         count = 0
@@ -434,6 +482,7 @@ def start_second_review(unique_id):
         # 초기 로드 상태 로깅
     logging.debug(f"Initial deleted_sentences loaded: {review_session.deleted_sentences}")
 
+
     # JSON 데이터 처리
     if isinstance(review_session.word_sentences, str):
         try:
@@ -463,7 +512,12 @@ def start_second_review(unique_id):
     review_session.review_stage = 'second_review_started'
     review_session.user_id = user.id
 
-    return redirect(url_for('show_results',unique_id=unique_id))
+    # deleted_sentences를 second_review 필드로 필터링
+    second_review_deleted_sentences = deleted_sentences.get('second_review', {})
+    app.logger.debug(f"Second review deleted sentences: {second_review_deleted_sentences}")
+
+    db.session.commit()  # 데이터베이스에 변경 사항 저장
+    return redirect(url_for('second_show_results',unique_id=unique_id))
 
 @app.route('/start_third_review/<unique_id>', methods=['POST'])
 def start_third_review(unique_id):
@@ -605,6 +659,99 @@ def compare_results():
 
     return render_template('compare_results.html', levels=filtered_levels, deleted_sentences=deleted_sentences, review_stage=review_session.review_stage, review_stage_korean=review_stage_korean, review_session=review_session, count_by_level=count_by_level, word_sentences=word_sentences, unique_id=unique_id, ebook_title=ebook_title)
 
+@app.route('/second_show_results', methods=['GET'])
+def second_show_results():
+    unique_id = request.args.get('unique_id')
+    
+    # UUID 검증
+    if not is_valid_uuid(unique_id):
+        return render_template('error.html', message="Invalid UUID format."), 400
+
+    # UUID 형식 변경 (필요한 경우)
+    if len(unique_id) == 32:  # UUID가 하이픈 없이 제공될 경우
+        formatted_uuid = f"{unique_id[:8]}-{unique_id[8:12]}-{unique_id[12:16]}-{unique_id[16:20]}-{unique_id[20:]}"
+        unique_id = formatted_uuid
+
+    review_session = ReviewSession.query.filter_by(id=unique_id).first()
+    if review_session:
+        # JSON 필드인 'deleted_sentences'를 처리하는 로직 수정
+        if isinstance(review_session.deleted_sentences, str):
+            try:
+                deleted_sentences = json.loads(review_session.deleted_sentences)
+            except json.JSONDecodeError as e:
+                logging.error(f"JSON decoding error: {e}")
+                return render_template('error.html', message="Error decoding deleted sentences."), 400
+        elif isinstance(review_session.deleted_sentences, dict):
+            deleted_sentences = review_session.deleted_sentences
+        else:
+            deleted_sentences = {}  # 기본값 설정
+        logging.debug(f"Loaded deleted_sentences: {review_session.deleted_sentences}")
+        # 추가적으로 'levels' 필드가 필요하다면 여기서 처리
+        levels = review_session.levels if review_session.levels else {}
+        
+
+    if not review_session:
+        logging.error(f"No valid session found for ID: {unique_id}")
+        return render_template('error.html', message="No valid session found for the given ID."), 404
+    levels = review_session.levels
+    try:
+        word_sentences = review_session.word_sentences
+
+        # 데이터 로드 후 타입 확인 및 변환
+        if isinstance(word_sentences, list) and len(word_sentences) > 0:
+            # 리스트 형태인 경우 첫 번째 요소 사용 (이 예제에서는 첫 번째 요소가 dict라고 가정)
+            word_sentences = word_sentences[0] if isinstance(word_sentences[0], dict) else {}
+        
+        if not isinstance(word_sentences, dict):
+            raise ValueError("Word sentences data is not in the correct format.")   
+    
+    except ValueError as e:
+        return render_template('error.html', message=str(e)), 400
+    
+    # JSON 필드인 'deleted_sentences'와 'word_sentences'를 처리하는 로직 수정
+    deleted_sentences = review_session.deleted_sentences or {}
+    if isinstance(deleted_sentences, str):
+        try:
+            deleted_sentences = json.loads(deleted_sentences)
+        except json.JSONDecodeError as e:
+            logging.error(f"JSON decoding error: {e}")
+            return render_template('error.html', message="Error decoding deleted sentences."), 400
+
+
+    # 2차 검토에서 제외된 문장만 반영
+    second_review_deleted_sentences = deleted_sentences.get('second_review', {})
+
+    final_word_counts = {}
+    for word, sentences in word_sentences.items():
+        if word in second_review_deleted_sentences:
+            final_word_counts[word] = len(sentences) - len(second_review_deleted_sentences[word])
+        else:
+            final_word_counts[word] = len(sentences)
+
+
+    count_by_level = {}
+    for level, words in levels.items():
+        count = 0
+        for word_info in words:
+            word = word_info['word']
+            count += final_word_counts.get(word, 0)
+        count_by_level[level] = count
+    # 실제 사용된 단어들만 필터링
+    used_words = {word for word in word_sentences if word_sentences[word]}  # 단어 문장에 무언가 있을 때만 추가
+    filtered_levels = {level: [word for word in words if word['word'] in used_words] for level, words in levels.items()}
+
+    ebook_title = review_session.ebook_title[:-4] if review_session.ebook_title.endswith('.pdf') else review_session.ebook_title
+
+     # 검토 단계를 한국어로 변환하여 변수에 저장
+    review_stage_korean = {
+        'not_reviewed': '<1차 검토>',
+        'second_review_started': '<2차 검토>',
+        'first_review_complete': '<2차 검토>',
+        'second_review_complete': '<3차 검토>',
+        'review_complete': '<3차 검토>'
+    }.get(review_session.review_stage, '<미정의 단계>')   
+
+    return render_template('second_show_results.html', levels=filtered_levels, deleted_sentences=deleted_sentences, review_stage=review_session.review_stage, review_stage_korean=review_stage_korean, review_session=review_session, count_by_level=count_by_level, word_sentences=word_sentences, unique_id=unique_id, ebook_title=ebook_title)
 
 @app.route('/some_route')
 def some_route():
@@ -663,6 +810,26 @@ def final_results():
     logging.debug(f"Loaded levels: {levels}")
     logging.debug(f"Calculated count_by_level: {count_by_level}")
     logging.debug(f"Calculated sum_counts_by_level: {sum_counts_by_level}")
+
+    # Save the calculated counts in the session
+    session['final_counts'] = sum_counts_by_level
+
+    # Update the session with the calculated counts for count_by_level as well
+    session['count_by_level'] = count_by_level
+
+    # Prepare JSON data for the download_table_excel function
+    table_data = json.dumps({
+        'countData': count_by_level,
+        'sumData': sum_counts_by_level
+    })
+
+    # 자동으로 엑셀 파일 생성 및 이메일 전송
+    with app.test_request_context(method='POST'):
+        request.form = MultiDict([
+            ('tableData', table_data),
+            ('ebookTitle', f"{review_stage_korean}_{ebook_title}")
+        ])
+        download_table_excel(unique_id)
 
     return render_template('final_results.html', review_stage=review_stage_korean, ebook_title=ebook_title,
                            reviewer_name=user.name, analysis_time=analysis_time,
@@ -756,7 +923,40 @@ def update_review():
     # 응답 반환
     return jsonify({'success': 'Data updated'}), 200
 
+from email.header import Header  # 이메일 헤더 인코딩을 위해 필요
 
+def send_email_with_smtplib(recipient, subject, body, excel_data, filename):
+    sender_email = "pbh1527@gmail.com"
+    sender_password = "gljo xpuj rous xgaz"
+
+    # 이메일 구성
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = recipient
+    msg['Subject'] = Header(subject, 'utf-8')
+
+    # 본문 추가
+    msg.attach(MIMEText(body, 'plain', 'utf-8'))
+
+    # 파일 첨부
+    part = MIMEBase('application', 'octet-stream')
+    part.set_payload(excel_data.getvalue())
+    encoders.encode_base64(part)
+    part.add_header('Content-Disposition', 'attachment', filename=Header(filename, 'utf-8').encode())
+    msg.attach(part)
+
+    # 서버 연결 및 이메일 전송
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        text = msg.as_bytes()
+        server.sendmail(sender_email, recipient, text)
+        server.quit()
+        print("Email sent successfully")
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+    
 @app.route('/download_table_excel/<unique_id>', methods=['POST'])
 def download_table_excel(unique_id):
     # Ensure the upload directory exists
@@ -771,25 +971,79 @@ def download_table_excel(unique_id):
     if not table_data:
         return "No data provided", 400
     
-    if table_data:
+    try:
         data = json.loads(table_data)
-        count_data = data.get('countData')
-        sum_data = data.get('sumData')
+    except json.JSONDecodeError as e:
+        logging.error(f"JSON decoding error: {e}")
+        return "Invalid JSON data", 400
 
-        # Create DataFrames from the data
-        df_counts = pd.DataFrame(count_data, columns=['Level 1', 'Level 2', 'Level 3', 'Level 4'])
-        df_sums = pd.DataFrame(sum_data, columns=['Level 1', 'Level 2', 'Level 3', 'Level 4'])
+    count_data = data.get('countData')
+    sum_data = data.get('sumData')
 
+    # 로그 추가
+    logging.debug(f"Received count_data: {count_data}")
+    logging.debug(f"Received sum_data: {sum_data}")
+
+                # Retrieve the review session data
+    review_session = ReviewSession.query.filter_by(id=unique_id).first()
+    if not review_session:
+        return "Review session not found", 404
+
+        # Parse the word sentences and filter out deleted sentences
+    word_sentences = review_session.word_sentences or {}
+    if isinstance(word_sentences, str):
+        word_sentences = json.loads(word_sentences)
+
+    deleted_sentences = review_session.deleted_sentences or {}
+    if isinstance(deleted_sentences, str):
+        deleted_sentences = json.loads(deleted_sentences)
+
+    levels = review_session.levels or {}
+    if isinstance(levels, str):
+        levels = json.loads(levels)
+
+        # Filter out the deleted sentences
+    filtered_sentences = {}
+    for word, sentences in word_sentences.items():
+        filtered_sentences[word] = [s for i, s in enumerate(sentences) if i not in deleted_sentences.get(word, [])]
+
+    # Ensure data is in list form
+    count_data_list = [list(count_data.values())] if count_data else [[]]
+    sum_data_list = [list(sum_data.values())] if sum_data else [[]]
+    # Create DataFrames from the data
+    try:
+        df_counts = pd.DataFrame(count_data_list, columns=['Level 1', 'Level 2', 'Level 3', 'Level 4'])
+        df_sums = pd.DataFrame(sum_data_list, columns=['Level 1', 'Level 2', 'Level 3', 'Level 4'])
+    except ValueError as e:
+        logging.error(f"Error creating DataFrames: {e}")
+        return "Error creating Excel data", 500
+
+        # Prepare DataFrame for word sentences with levels
+    sentence_data = []
+    for level, words in levels.items():
+        for word_info in words:
+            word = word_info['word']
+            sentences = filtered_sentences.get(word, [])
+            for sentence in sentences:
+                sentence_data.append({"Level": level, "Word": word, "Sentence": sentence})
+    df_sentences = pd.DataFrame(sentence_data)
+        
+    output = BytesIO()
         # Save to Excel
-        filename = f"{ebook_title}.xlsx"  # Use the ebook title for the filename
-        excel_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
-            df_counts.to_excel(writer, sheet_name='Counts by Level', index=False)
-            df_sums.to_excel(writer, sheet_name='Sum Counts by Level', index=False)
+    filename = f"{ebook_title}.xlsx"  # Use the ebook title for the filename
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_counts.to_excel(writer, sheet_name='Counts by Level', index=False)
+        df_sums.to_excel(writer, sheet_name='Sum Counts by Level', index=False)
+        df_sentences.to_excel(writer, sheet_name='Word Sentences', index=False)
+    output.seek(0)
 
-        return send_file(excel_path, as_attachment=True, download_name=filename)
-
-    return "No data provided", 400
+    # 이메일 전송
+    recipient_email = 'pbh1527@gmail.com'  # 실제 이메일 주소로 변경
+    subject = f"{review_session.review_stage} - {ebook_title} 분석 결과"
+    body = f"{ebook_title}의 분석 결과를 첨부합니다."
+    send_email_with_smtplib(recipient_email, subject, body, output, f"{ebook_title}.xlsx")
+                
+    return send_file(output, as_attachment=True, download_name=filename)
 
 
 

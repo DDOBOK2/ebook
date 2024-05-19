@@ -184,7 +184,7 @@
 </head>
 <body>
     <div class="container">
-        <h2>사고도구어 분석</h2>
+        <h2>사고도구어 수준별 분석(검증) 시스템</h2>
         <div class="form-section">
         <form action="/" method="post" enctype="multipart/form-data">
             <div class="form-group">
@@ -209,7 +209,7 @@
         </div>
 
         <div class="form-section">
-        <h3>검토 도서 목록</h3>
+        <h3>1차, 2차, 3차 분석(검증) 도서 목록</h3>
         <form action="/" method="get" class="search-group">
             <input type="text" name="search" placeholder="책 제목을 입력하세요" class="form-control">
             <button type="submit" class="btn btn-info">검색</button>
@@ -219,27 +219,29 @@
             <li class="list-group-item">
                 <span class="ebook-title">{{ book.ebook_title|replace('.pdf', '') }}</span>
                 <!-- Form to start second review -->
-                {% if book.review_stage == 'first_review_complete' %}
+                {% if book.review_stage == 'not_reviewed' %}
+                <form action="{{ url_for('show_results') }}" method="get" class="review-group">
+                    <input type="hidden" name="unique_id" value="{{ book.id }}">
+                    <button type="submit" class="btn btn-sm btn-secondary">이어하기</button>
+                </form>
+                {% elif book.review_stage == 'first_review_complete' %}
                 <form action="/start_second_review/{{ book.id }}" method="post" class="review-group">
                     <input type="text" name="reviewer_name" placeholder="이름을 입력하세요" required class="short-input">
                     <button type="submit" class="btn btn-sm btn-secondary">2차 검토 시작</button>
                 </form>
                 {% elif book.review_stage == 'second_review_started' %}
-                <form action="/complete_second_review/{{ book.id }}" method="post" class="review-group">
-                    <input type="text" name="reviewer_name" placeholder="이름을 입력하세요" required class="short-input">
-                    <button type="submit" class="btn btn-sm btn-success">2차 검토 완료</button>
+                <form action="{{ url_for('show_results') }}" method="get" class="review-group">
+                    <input type="hidden" name="unique_id" value="{{ book.id }}">
+                    <button type="submit" class="btn btn-sm btn-secondary">2차 검토 이어하기</button>
                 </form>
-                {% endif %}
-                <!-- Form to compare results -->
-                {% if book.review_stage == 'review_complete' %}
-                <form action="/final_results/{{ book.id }}" method="post" class="review-group">
-                    <button type="submit" class="btn btn-sm btn-success" disabled>3차 검토 완료</button>
-                </form>
-                {% endif %}
-                {% if book.review_stage == 'second_review_complete' %}
+                {% elif book.review_stage == 'second_review_complete' %}
                 <form action="/start_third_review/{{ book.id }}" method="post" class="review-group">
                     <input type="text" name="reviewer_name" placeholder="이름을 입력하세요" required class="short-input">
                     <button type="submit" class="btn btn-sm btn-info">3차 검토 시작</button>
+                </form>
+                {% elif book.review_stage == 'review_complete' %}
+                <form action="/final_results/{{ book.id }}" method="post" class="review-group">
+                    <button type="submit" class="btn btn-sm btn-success" disabled>3차 검토 완료</button>
                 </form>
                 {% endif %}
             </li>

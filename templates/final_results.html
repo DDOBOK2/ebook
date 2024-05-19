@@ -175,23 +175,25 @@
         <input type="hidden" name="ebookTitle" id="ebookTitle" value="{{ review_stage }}_{{ ebook_title | replace('.pdf', '') }}"/>
     </form>
     <script>
-        window.onload = function() {
-            // Parsing data and logging it
-            const countData = JSON.parse('{{ count_by_level | tojson | safe }}');
-            const sumCountsData = JSON.parse('{{ sum_counts_by_level | tojson | safe }}');
-            console.log("Loaded countData:", countData);
-            console.log("Loaded sumCountsData:", sumCountsData);
+    window.onload = function() {
+        // Parsing data and logging it
+        const countData = JSON.parse('{{ count_by_level | tojson | safe }}');
+        const sumCountsData = JSON.parse('{{ sum_counts_by_level | tojson | safe }}');
+        console.log("Loaded countData:", countData);
+        console.log("Loaded sumCountsData:", sumCountsData);
 
-            // Check if data is available
-            if (!countData || !sumCountsData || Object.keys(countData).length === 0 || Object.keys(sumCountsData).length === 0) {
-                alert('No data available to display charts. Please check the data and try again.');
-                return; // Stop execution if data is missing
-            }
+        // Check if data is available
+        if (!countData || !sumCountsData || Object.keys(countData).length === 0 || Object.keys(sumCountsData).length === 0) {
+            alert('No data available to display charts. Please check the data and try again.');
+            return; // Stop execution if data is missing
+        }
 
-            // Render the charts
-            renderCharts(countData, sumCountsData);
-        };
+        // Render the charts
+        renderCharts(countData, sumCountsData);
 
+        // Call submitTableData to send the data and generate the Excel file
+        submitTableData();
+    };
         function renderCharts(countData, sumCountsData) {
             // Chart for Count of Unique Words by Level
             const ctx1 = document.getElementById('wordCountByLevel').getContext('2d');
@@ -240,33 +242,29 @@
             });
         }
         function submitTableData() {
-    var countData = [];  // Array to hold data from the first table
-    var sumData = [];    // Array to hold data from the second table
-    
-    // Iterate over the first table rows and columns to collect data
-    document.querySelectorAll('.table-container:first-of-type table tbody tr').forEach(row => {
-        var rowData = [];
-        row.querySelectorAll('td').forEach(cell => {
-            rowData.push(cell.innerText);
-        });
-        countData.push(rowData);
-    });
+        var countData = {};  // Object to hold data from the first table
+        var sumData = {};    // Object to hold data from the second table
 
-    // Iterate over the second table rows and columns to collect data
-    document.querySelectorAll('.table-container:last-of-type table tbody tr').forEach(row => {
-        var rowData = [];
-        row.querySelectorAll('td').forEach(cell => {
-            rowData.push(cell.innerText);
+        // Iterate over the first table rows and columns to collect data
+        document.querySelectorAll('.table-container:first-of-type table tbody tr').forEach(row => {
+            row.querySelectorAll('td').forEach((cell, index) => {
+                countData[index + 1] = cell.innerText;
+            });
         });
-        sumData.push(rowData);
-    });
 
-    // Set the form data to send
-    document.getElementById('tableData').value = JSON.stringify({countData, sumData});
-    
-    // Submit the form
-    document.getElementById('excelExportForm').submit();
-}
+        // Iterate over the second table rows and columns to collect data
+        document.querySelectorAll('.table-container:last-of-type table tbody tr').forEach(row => {
+            row.querySelectorAll('td').forEach((cell, index) => {
+                sumData[index + 1] = cell.innerText;
+            });
+        });
+
+        // Set the form data to send
+        document.getElementById('tableData').value = JSON.stringify({countData, sumData});
+
+        // Submit the form
+        document.getElementById('excelExportForm').submit();
+    }
 function captureScreen() {
     html2canvas(document.body).then(canvas => {
         // 캔버스를 이미지로 변환
