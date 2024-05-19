@@ -167,8 +167,6 @@
     </div>
     <div class="button-container">
         <button onclick="window.location.href='/'" style="padding: 10px 20px; font-size: 16px; background-color: #007bff; color: white; border: none; border-radius: 8px; cursor: pointer;">처음으로</button>
-        <button type="button" class="button" onclick="submitTableData()">데이터 다운로드</button>
-        <button type="button" class="button" onclick="captureScreen()">화면 캡쳐</button>
     </div>
     <form id="excelExportForm" action="{{ url_for('download_table_excel', unique_id=unique_id) }}" method="post">
         <input type="hidden" name="tableData" id="tableData" value=""/>
