@@ -199,7 +199,7 @@ def upload_file():
 
 def get_reviewed_books(search_query=''):
     query = ReviewSession.query.filter(
-        ReviewSession.review_stage.in_(['not_reviewed', 'first_review_complete', 'second_review_started', 'second_review_complete', 'review_complete'])
+        ReviewSession.review_stage.in_(['not_reviewed', 'first_review_complete', 'second_review_started', 'second_review_complete', 'third_review_started', 'review_complete'])
     )
     if search_query:
         query = query.filter(ReviewSession.ebook_title.ilike(f'%{search_query}%'))
@@ -328,6 +328,7 @@ def show_results():
         'second_review_started': '<2차 검토>',
         'first_review_complete': '<2차 검토>',
         'second_review_complete': '<3차 검토>',
+        'third_review_started': '<3차 검토>',
         'review_complete': '<3차 검토>'
     }.get(review_session.review_stage, '<미정의 단계>')   
 
@@ -419,7 +420,8 @@ def complete_review(unique_id):
         'not_reviewed': 'first_review_complete',
         'first_review_complete': 'second_review_complete',
         'second_review_started': 'second_review_complete',  # 이 부분이 빠져 있었을 수 있습니다.
-        'second_review_complete': 'review_complete'
+        'second_review_complete': 'third_review_started',  # 추가된 부분
+        'third_review_started': 'review_complete'  # 추가된 부분
     }
  
     current_stage = review_session.review_stage
@@ -575,7 +577,7 @@ def start_third_review(unique_id):
         return render_template('error.html', message="Error processing word sentences data."), 400
 
     # 리뷰 단계 및 사용자 ID 업데이트
-    review_session.review_stage = 'review_complete'
+    review_session.review_stage = 'third_review_started'
     review_session.user_id = user.id
 
 
@@ -654,6 +656,7 @@ def compare_results():
         'second_review_started': '<2차 검토>',
         'first_review_complete': '<2차 검토>',
         'second_review_complete': '<3차 검토>',
+        'third_review_started': '<3차 검토>',
         'review_complete': '<3차 검토>'
     }.get(review_session.review_stage, '<미정의 단계>')   
 
@@ -748,6 +751,7 @@ def second_show_results():
         'second_review_started': '<2차 검토>',
         'first_review_complete': '<2차 검토>',
         'second_review_complete': '<3차 검토>',
+        'third_review_started': '<3차 검토>',
         'review_complete': '<3차 검토>'
     }.get(review_session.review_stage, '<미정의 단계>')   
 
@@ -783,6 +787,7 @@ def final_results():
         'not_reviewed': '미검토',
         'first_review_complete': '1차 검토',
         'second_review_complete': '2차 검토',
+        'third_review_started': '3차 검토',
         'review_complete': '3차 검토'
     }.get(review_session.review_stage, '미정의 단계')
 

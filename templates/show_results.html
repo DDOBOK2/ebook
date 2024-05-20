@@ -180,9 +180,9 @@
 }
     /* 완료 버튼 숨기기 */
     #finishButton {
-        display: none;
-        text-align: right;
-    }
+    display: none;
+    margin: 0 auto; /* 중앙 정렬을 위해 마진을 자동으로 설정 */
+}
 
     </style>
     <script>
@@ -439,21 +439,26 @@ function toggleSentences(word) {
         }
     }
     function reviewToggle(button, word) {
-        var sentenceDiv = document.getElementById("sentences-" + word);
-        if (button.innerText === '검토') {
-            sentenceDiv.style.display = 'block';
-            button.innerText = '완료';
-            button.classList.remove('completed-button'); // Remove completed state class if exists
-            button.style.backgroundColor = '#28a745'; // Green color for review in progress
-        } else if (button.innerText === '완료') {
-            sentenceDiv.style.display = 'none';
-            button.innerText = '완료'; // Change text to 'Completed'
-            button.classList.add('completed-button'); // Add completed state class to keep it green
-            button.style.backgroundColor = ''; // Make sure to clear any inline styles
-            reviewStatus[word] = 'completed';
+            var sentenceDiv = document.getElementById("sentences-" + word);
+            if (button.innerText === '검토') {
+                sentenceDiv.style.display = 'block';
+                button.innerText = '완료';
+                button.classList.remove('completed-button'); // Remove completed state class if exists
+                button.style.backgroundColor = '#28a745'; // Green color for review in progress
+            } else if (button.innerText === '완료') {
+                sentenceDiv.style.display = 'none';
+                button.innerText = '수정'; // Change text to '수정'
+                button.classList.add('completed-button'); // Add completed state class to keep it green
+                button.style.backgroundColor = ''; // Make sure to clear any inline styles
+                reviewStatus[word] = 'completed';
+            } else if (button.innerText === '수정') {
+                sentenceDiv.style.display = 'block';
+                button.innerText = '완료';
+                button.classList.remove('completed-button'); // Remove completed state class
+                button.style.backgroundColor = '#28a745'; // Green color for review in progress
+            }
+            saveReviewStatus(); // 즉시 저장
         }
-        saveReviewStatus(); // 즉시 저장
-}
 document.addEventListener('DOMContentLoaded', function() {
     showLevel('1');
 });
@@ -513,7 +518,7 @@ function saveReviewStatus() {
 }
 
 window.addEventListener('beforeunload', saveReviewStatus);
-setInterval(saveReviewStatus, 30000); // 30초마다 자동 저장
+setInterval(saveReviewStatus, 15000); // 30초마다 자동 저장
     </script>
 </body>
 </html>

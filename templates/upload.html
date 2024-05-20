@@ -222,7 +222,7 @@
                 {% if book.review_stage == 'not_reviewed' %}
                 <form action="{{ url_for('show_results') }}" method="get" class="review-group">
                     <input type="hidden" name="unique_id" value="{{ book.id }}">
-                    <button type="submit" class="btn btn-sm btn-secondary">이어하기</button>
+                    <button type="submit" class="btn btn-sm btn-secondary">1차 검토 이어하기</button>
                 </form>
                 {% elif book.review_stage == 'first_review_complete' %}
                 <form action="/start_second_review/{{ book.id }}" method="post" class="review-group">
@@ -234,7 +234,7 @@
                     <input type="hidden" name="unique_id" value="{{ book.id }}">
                     <button type="submit" class="btn btn-sm btn-secondary">2차 검토 이어하기</button>
                 </form>
-                {% elif book.review_stage == 'second_review_complete' %}
+                {% elif book.review_stage == 'second_review_complete' or book.review_stage == 'third_review_started' %}
                 <form action="/start_third_review/{{ book.id }}" method="post" class="review-group">
                     <input type="text" name="reviewer_name" placeholder="이름을 입력하세요" required class="short-input">
                     <button type="submit" class="btn btn-sm btn-info">3차 검토 시작</button>
