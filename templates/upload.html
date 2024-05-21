@@ -124,27 +124,40 @@
     font-weight: bold;
     color: #495057;
     margin-right: 10px;
-    font-size: 16px;
+    font-size: 24px;
 }
-
+.survey-buttons {
+    text-align: center; /* 버튼을 가운데 정렬 */
+}
 .survey-links button {
     background-color: #007bff;
     color: white;
     border: none;
-    padding: 10px 15px;
-    margin: 5px;
-    border-radius: 5px;
+    padding: 15px 30px; /* 버튼 크기 키우기 */
+    margin: 10px 20px; /* 좌우 여백을 더 크게 조정 */
+    border-radius: 10px; /* 둥근 모서리 */
     cursor: pointer;
-    font-size: 16px;
+    font-size: 18px; /* 폰트 크기 키우기 */
+    text-align: center;
+    display: inline-block; /* 버튼들을 인라인 블록으로 표시 */
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* 약간의 그림자 효과 */
+    transition: background-color 0.3s ease, transform 0.3s ease; /* 호버 시 부드러운 전환 효과 */
 }
 
 .survey-links button:hover {
     background-color: #0056b3;
+    transform: translateY(-2px); /* 호버 시 살짝 올라오는 효과 */
 }
 
 .survey-description {
     text-align: left;
-    font-size: 14px;
+    font-size: 16px;
+    margin-top: 10px;
+}
+.description {
+    color: rgb(153, 0, 0);
+    text-align: left;
+    font-size: 16px;
     margin-top: 10px;
 }
 .form-section {
@@ -185,27 +198,37 @@
 <body>
     <div class="container">
         <h2>사고도구어 수준별 분석(검증) 시스템</h2>
+        <!-- First Box -->
         <div class="form-section">
-            <form id="uploadForm" action="/" method="post" enctype="multipart/form-data">
-            <div class="form-group">
-                <label for="username">검토 위원 이름:</label>
-                <input type="text" id="username" name="username" placeholder="이름을 입력하세요" class="form-control" required>
-            </div>
-            <div class="form-group">
-                <label for="ebook">전자책 PDF:</label>
-                <input type="file" name="ebook" id="ebook" class="form-control" required>
-            </div>
             <div class="survey-links">
+                <p class="description">
+                    * 1차, 2차, 3차 분석 시작 전 설문을 먼저 진행해주세요.
+                </p>
                 <p>설문 조사 링크:</p>
-                <button onclick="window.location.href='http://ksurv.kr/akM3Nj09Ojw';" class="btn-nonfiction">비문학</button>
-                <button onclick="window.location.href='http://ksurv.kr/akM3Nj09Oj0';" class="btn-fiction">문학</button>
+                <div class="survey-buttons">
+                    <button onclick="window.location.href='http://ksurv.kr/akM3Nj09Ojw';" class="btn-nonfiction">비문학</button>
+                    <button onclick="window.location.href='http://ksurv.kr/akM3Nj09Oj0';" class="btn-fiction">문학</button>
+                </div>
             </div>
             <p class="survey-description">
                 * 현재 분석하는 책이 <strong>문학 도서</strong>라면 '문학' 버튼 클릭하여 설문,
                 <br>* 현재 분석하는 책이 <strong>비문학 도서</strong>라면 '비문학' 버튼 클릭하여 설문
             </p>
-            <button type="submit" class="btn btn-primary btn-center">분석 시작</button>
-        </form>
+        </div>
+
+        <!-- Second Box -->
+        <div class="form-section">
+            <form id="uploadForm" action="/" method="post" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="username">검토 위원 이름:</label>
+                    <input type="text" id="username" name="username" placeholder="이름을 입력하세요" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="ebook">전자책 PDF:</label>
+                    <input type="file" name="ebook" id="ebook" class="form-control" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-center">분석 시작</button>
+            </form>
         </div>
 
         <div class="form-section">
