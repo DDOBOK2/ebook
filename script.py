@@ -199,7 +199,7 @@ def upload_file():
 
 def get_reviewed_books(search_query=''):
     query = ReviewSession.query.filter(
-        ReviewSession.review_stage.in_(['not_reviewed', 'first_review_complete', 'second_review_started', 'second_review_complete', 'third_review_started', 'review_complete'])
+        ReviewSession.review_stage.in_(['not_reviewed', 'first_review_complete', 'second_review_started', 'second_review_complete', 'third_review_started'])
     )
     if search_query:
         query = query.filter(ReviewSession.ebook_title.ilike(f'%{search_query}%'))
