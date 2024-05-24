@@ -785,11 +785,12 @@ def final_results():
 
     analysis_time = datetime.now()  # 현재 시간을 생성
     review_stage_korean = {
-        'not_reviewed': '미검토',
-        'first_review_complete': '1차 검토',
-        'second_review_complete': '2차 검토',
-        'third_review_started': '3차 검토',
-        'review_complete': '3차 검토'
+        'not_reviewed': '<1차 검토>',
+        'second_review_started': '<2차 검토>',
+        'first_review_complete': '<1차 검토>',
+        'second_review_complete': '<3차 검토>',
+        'third_review_started': '<3차 검토>',
+        'review_complete': '<3차 검토>'
     }.get(review_session.review_stage, '미정의 단계')
 
     user = User.query.get(review_session.user_id)

@@ -192,6 +192,7 @@
     <script>
         var deleted_sentences = {{ deleted_sentences|tojson }};
         var reviewStage = "{{ review_session.review_stage if review_session else 'Default Stage' }}";
+        var word_sentences = {{ word_sentences|tojson }};
         var uniqueId = "{{ unique_id }}";
         console.log("Deleted sentences:", deleted_sentences);
         console.log("Current review stage:", reviewStage);  // 이 로그를 추가하여 실제 값 확인
@@ -447,17 +448,58 @@ document.addEventListener('DOMContentLoaded', function() {
                   alert('Failed to update the review status.');
               });
         }
+        function applyReviewStatus() {
+            for (const [word, status] of Object.entries(reviewStatus)) {
+                const button = document.querySelector(`.review-button[data-word="${word}"]`);
+                if (button) {
+                    if (status === 'completed') {
+                        button.innerText = '완료';
+                        button.classList.add('completed-button');
+                    }
+                }
+            }
+        }
+        
         document.addEventListener('DOMContentLoaded', function() {
-    Object.keys(deleted_sentences).forEach(sessionId => {
-        deleted_sentences[sessionId].forEach(index => {
-            var sentenceElement = document.getElementById(`sentence-${sessionId}-${index}`);
+    Object.keys(deleted_sentences).forEach(word => {
+        deleted_sentences[word].forEach(index => {
+            var sentenceElement = document.querySelector(`#sentences-${word} .sentence:nth-child(${index + 1})`);
             if (sentenceElement) {
                 sentenceElement.classList.add('deleted');
             }
         });
     });
-});
 
+    // 새로고침 후 카운트 반영
+    Object.keys(word_sentences).forEach(word => {
+        var countElement = document.getElementById("count-" + word);
+        if (countElement) {
+            var currentCount = word_sentences[word].length - (deleted_sentences[word] ? deleted_sentences[word].length : 0);
+            countElement.innerText = currentCount;
+        }
+    });
+});
+        var reviewStatus = {{ review_session.word_review_status|tojson }};
+function saveReviewStatus() {
+    fetch('/save_review_status', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({unique_id: "{{ unique_id }}", review_status: reviewStatus})
+    }).then(response => response.json())
+      .then(data => {
+          if (data.status === 'success') {
+              console.log('Review status saved successfully.');
+          } else {
+              console.error('Failed to save review status:', data.message);
+          }
+      }).catch(error => {
+          console.error('Error:', error);
+      });
+}
+
+
+window.addEventListener('beforeunload', saveReviewStatus);
+setInterval(saveReviewStatus, 15000); // 30초마다 자동 저장
     </script>
 </body>
 </html>
