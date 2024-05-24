@@ -852,16 +852,6 @@ def submit_final_counts():
 
     return jsonify({"status": "success"})
 
-@app.route('/update_review_stage/<unique_id>', methods=['POST'])
-def update_review_stage(unique_id):
-    review_session = ReviewSession.query.filter_by(id=unique_id).first()
-    if review_session:
-        # 예를 들어, 다음 검토 단계로 업데이트
-        review_session.review_stage = 'first_review_complete'
-        db.session.commit()
-        logging.info(f"Review stage updated to {review_session.review_stage} for session {unique_id}")
-        return jsonify({'status': 'success', 'message': 'Review stage updated'})
-    return jsonify({'status': 'error', 'message': 'Review session not found'}), 404
 
 
 @app.route('/update_review', methods=['POST'])
