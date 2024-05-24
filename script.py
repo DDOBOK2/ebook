@@ -426,7 +426,8 @@ def complete_review(unique_id):
  
     current_stage = review_session.review_stage
     logging.debug(f"Current review stage: {current_stage}")  # 로그 추가
-    review_session.review_stage = next_stage.get(current_stage, current_stage)
+    if current_stage in next_stage:
+        review_session.review_stage = next_stage[current_stage]
     db.session.commit()
     logging.info(f"Review session updated to {review_session.review_stage} for ID: {unique_id}")
     return jsonify({'status': 'success', 'message': f'Review updated to {review_session.review_stage}'})
