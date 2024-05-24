@@ -418,7 +418,7 @@ def complete_review(unique_id):
 
     next_stage = {
         'not_reviewed': 'first_review_complete',
-        'first_review_complete': 'second_review_complete',
+        'first_review_complete': 'second_review_started',
         'second_review_started': 'second_review_complete',  # 이 부분이 빠져 있었을 수 있습니다.
         'second_review_complete': 'third_review_started',  # 추가된 부분
         'third_review_started': 'review_complete'  # 추가된 부분
