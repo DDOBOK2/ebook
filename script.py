@@ -29,6 +29,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
+from sqlalchemy import create_engine, asc
+from sqlalchemy.orm import sessionmaker
 
 
 app = Flask(__name__)
@@ -143,6 +145,24 @@ def compare_deletions(details):
     common_deletions = sorted(deleted_by_first.intersection(deleted_by_second))
     differences = sorted(deleted_by_first.symmetric_difference(deleted_by_second))
     return common_deletions, differences
+# 데이터베이스 연결 설정
+DATABASE_URL = "postgresql+psycopg2://u2uhjodj48ph7e:p815efaa3f6b488a1904de91887c61d31e08e1a41606cf85980cdfdd72ecf875d@ec2-44-219-223-58.compute-1.amazonaws.com:5432/d962ptduqa0jq"
+engine = create_engine(DATABASE_URL)
+Session = sessionmaker(bind=engine)
+@app.route('/upload')
+def upload():
+    page = request.args.get('page', 1, type=int)  # 현재 페이지를 가져옵니다. 기본값은 1입니다.
+    per_page = 20  # 한 페이지에 보여줄 도서 수를 설정합니다.
+
+    search_query = request.args.get('search', '')  # 검색어 쿼리
+    query = ReviewSession.query.order_by(asc(ReviewSession.review_stage))
+
+    if search_query:
+        query = query.filter(ReviewSession.ebook_title.ilike(f'%{search_query}%'))
+
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    return render_template('upload.html', reviewed_books=pagination.items, pagination=pagination)
 
 
 
@@ -193,17 +213,17 @@ def upload_file():
     else:
         # GET 요청 처리: 검색 기능 및 목록 표시
         search_query = request.args.get('search', '')  # 검색어 쿼리
-        reviewed_books = get_reviewed_books(search_query)
-        return render_template('upload.html', reviewed_books=reviewed_books)
+        page = request.args.get('page', 1, type=int)  # 현재 페이지를 가져옵니다. 기본값은 1입니다.
+        per_page = 20  # 한 페이지에 보여줄 도서 수를 설정합니다.
 
+        query = ReviewSession.query.filter(
+            ReviewSession.review_stage.in_(['not_reviewed', 'first_review_complete', 'second_review_started', 'second_review_complete', 'third_review_started'])
+        )
+        if search_query:
+            query = query.filter(ReviewSession.ebook_title.ilike(f'%{search_query}%'))
 
-def get_reviewed_books(search_query=''):
-    query = ReviewSession.query.filter(
-        ReviewSession.review_stage.in_(['not_reviewed', 'first_review_complete', 'second_review_started', 'second_review_complete', 'third_review_started'])
-    )
-    if search_query:
-        query = query.filter(ReviewSession.ebook_title.ilike(f'%{search_query}%'))
-    return query.order_by(ReviewSession.created_at.desc()).all()
+        pagination = query.order_by(ReviewSession.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+        return render_template('upload.html', reviewed_books=pagination.items, pagination=pagination)
 
 @app.route('/save_review_status', methods=['POST'])
 def save_review_status():
@@ -327,7 +347,7 @@ def show_results():
         'not_reviewed': '<1차 검토>',
         'second_review_started': '<2차 검토>',
         'first_review_complete': '<2차 검토>',
-        'second_review_complete': '<3차 검토>',
+        'second_review_complete': '<2차 검토>',
         'third_review_started': '<3차 검토>',
         'review_complete': '<3차 검토>'
     }.get(review_session.review_stage, '<미정의 단계>')   
@@ -654,7 +674,7 @@ def compare_results():
         'not_reviewed': '<1차 검토>',
         'second_review_started': '<2차 검토>',
         'first_review_complete': '<2차 검토>',
-        'second_review_complete': '<3차 검토>',
+        'second_review_complete': '<2차 검토>',
         'third_review_started': '<3차 검토>',
         'review_complete': '<3차 검토>'
     }.get(review_session.review_stage, '<미정의 단계>')   
@@ -749,7 +769,7 @@ def second_show_results():
         'not_reviewed': '<1차 검토>',
         'second_review_started': '<2차 검토>',
         'first_review_complete': '<2차 검토>',
-        'second_review_complete': '<3차 검토>',
+        'second_review_complete': '<2차 검토>',
         'third_review_started': '<3차 검토>',
         'review_complete': '<3차 검토>'
     }.get(review_session.review_stage, '<미정의 단계>')   
@@ -786,7 +806,7 @@ def final_results():
         'not_reviewed': '<1차 검토>',
         'second_review_started': '<2차 검토>',
         'first_review_complete': '<1차 검토>',
-        'second_review_complete': '<3차 검토>',
+        'second_review_complete': '<2차 검토>',
         'third_review_started': '<3차 검토>',
         'review_complete': '<3차 검토>'
     }.get(review_session.review_stage, '미정의 단계')

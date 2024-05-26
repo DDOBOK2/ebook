@@ -470,14 +470,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // 새로고침 후 카운트 반영
-    Object.keys(word_sentences).forEach(word => {
-        var countElement = document.getElementById("count-" + word);
-        if (countElement) {
-            var currentCount = word_sentences[word].length - (deleted_sentences[word] ? deleted_sentences[word].length : 0);
-            countElement.innerText = currentCount;
-        }
-    });
+    applyReviewStatus();
 });
         var reviewStatus = {{ review_session.word_review_status|tojson }};
 function saveReviewStatus() {
